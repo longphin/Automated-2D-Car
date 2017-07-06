@@ -10,7 +10,15 @@ public class Car2dController : MonoBehaviour {
 	float driftFactorSticky = 0.9f;
 	float driftFactorSlippy = 1;
 	float maxStickyVelocity = 2.5f;
+
+    private Network network;
+    private static readonly char[] nodeNamePrefix = { 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z' };
     //float minSlippyVelocity = 1.5f;	// <--- Exercise for the viewer
+    private bool useAI = false; // AI with neural network not fully implemented
+    private bool turnRight = false, turnLeft = false, turnForward = true, turnBackward = false;
+    private float rightspeed = 0f;
+    private float leftspeed = 0f;
+    private int rightpressLength = 0, leftpressLength = 0;
 
     public List<SightObjects> sightList = new List<SightObjects>();
 
@@ -22,6 +30,8 @@ public class Car2dController : MonoBehaviour {
         {
             o.index = i++;
         }
+
+        InitializeNetwork(2, true);
     }
 
 	void Update() {
@@ -44,13 +54,13 @@ public class Car2dController : MonoBehaviour {
 
 		rb.velocity = ForwardVelocity() + RightVelocity()*driftFactor;
 
-		if(Input.GetButton("Accelerate")) {
+		if(Input.GetButton("Accelerate") || (useAI == true && turnForward == true)) {
 			rb.AddForce( transform.up * speedForce );
 
 			// Consider using rb.AddForceAtPosition to apply force twice, at the position
 			// of the rear tires/tyres
 		}
-		if(Input.GetButton("Brakes")) {
+		if(Input.GetButton("Brakes") || (useAI == true && turnBackward == true)) {
 			rb.AddForce( transform.up * -speedForce/2f );
             
 			// Consider using rb.AddForceAtPosition to apply force twice, at the position
@@ -63,8 +73,38 @@ public class Car2dController : MonoBehaviour {
 		// proportional to your current forward speed (you are converting some
 		// forward speed into sideway force)
 		float tf = Mathf.Lerp(0, torqueForce, rb.velocity.magnitude / 2);
-		rb.angularVelocity = Input.GetAxis("Horizontal") * tf;
-	}
+        //rb.angularVelocity = Input.GetAxis("Horizontal") * tf;
+        if(Input.GetButton("Right")) {
+            rightpressLength += 1;
+            leftspeed = 0f;
+            rightspeed += .03f + 0.0001f*rightpressLength;
+            if (rightspeed > 1) rightspeed = 1;
+
+            rb.angularVelocity = rightspeed * tf;
+        }
+        else
+        {
+            rightpressLength -= 1;
+            if (rightpressLength < 0) rightpressLength = 0;
+            rightspeed = 0f;
+        }
+        if (Input.GetButton("Left"))
+        {
+            leftpressLength += 1;
+            rightspeed = 0f;
+            leftspeed += .03f + 0.0001f * leftpressLength;
+            if (leftspeed > 1) leftspeed = 1;
+
+            rb.angularVelocity = -leftspeed * tf;
+        }
+        else
+        {
+            leftpressLength -= 1;
+            if (leftpressLength < 0) leftpressLength = 0;
+            leftspeed = 0f;
+        }
+        
+    }
 
 	Vector2 ForwardVelocity() {
 		return transform.up * Vector2.Dot( GetComponent<Rigidbody2D>().velocity, transform.up );
@@ -76,35 +116,97 @@ public class Car2dController : MonoBehaviour {
 
     void Raycasting(Transform startpoint, Transform endpoint)
     {
-        //Debug.DrawLine(sightStart.position, sightEnd.position, Color.green);
-
         var hit = Physics2D.Linecast(startpoint.position, endpoint.position, 1 << LayerMask.NameToLayer("Edges"));
 
         if (hit.collider != null)
         {
-            //Debug.Log(hit.collider.name);
             Debug.DrawLine(startpoint.position, hit.point, Color.green);
         }
         else
         {
-            //Debug.Log("No hit");
             Debug.DrawLine(startpoint.position, endpoint.position, Color.gray);
         }
     }
 
-    /*
-    IEnumerator waitForCarPhysics()
+    private void InitializeNetwork(int numHiddenLayers, bool addBias)
     {
-        while (true)
-        {
-            yield return new WaitForFixedUpdate();
-            sightStart.Translate(Vector2.zero);
-            sightEnd.Translate(Vector2.zero);
-            indicator.Translate(Vector2.zero);
-            transform.Translate(Vector2.zero);
+        network = new Network();
 
-            Raycasting();
+        Layer inpLayer = new Layer();
+        for (int i = 0; i < 8; i++)
+        {
+            Node n = new Node(nodeNamePrefix[0] + i.ToString());
+            inpLayer.AddNode(n);
+        }
+        network.AddLayer(inpLayer);
+        // create hidden layers
+        for (int numLayer = 0; numLayer < numHiddenLayers; numLayer++)
+        {
+            Layer hiddenLayer = new Layer();
+
+            string res = new String(nodeNamePrefix[(numLayer + 1) % nodeNamePrefix.Length], (numLayer + 1) / nodeNamePrefix.Length + 1);
+            for (int i = 0; i < 8; i++)
+            {
+                Node n = new Node(res + i.ToString());
+                hiddenLayer.AddNode(n);
+            }
+            network.AddLayer(hiddenLayer);
+        }
+        // create connectors from input to hidden layers, and from hidden to hidden layers
+        for (int i = 0; i < numHiddenLayers; i++)
+        {
+            foreach (Node n in network.layers[i].nodes)
+            {
+                foreach (Node n2 in network.layers[i + 1].nodes)
+                {
+                    if (n2.isBiasNode == false)
+                    {
+                        Connector con = new Connector(n, n2, 0.5d);
+                        n.AddForwardConnector(con);
+                        n2.AddBackwardConnector(con);
+                    }
+                }
+            }
+        }
+        // create output layer
+        Layer outLayer = new Layer();
+
+        string reso = new String(nodeNamePrefix[(numHiddenLayers + 1) % nodeNamePrefix.Length], (numHiddenLayers + 1) / nodeNamePrefix.Length + 1);
+        for (int i = 0; i < 2; i++)
+        {
+            Node n = new Node(reso + i.ToString());
+            outLayer.AddNode(n);
+        }
+        network.AddLayer(outLayer);
+        // create connectors from hidden layer to output layer
+        foreach (Node n in network.layers[numHiddenLayers].nodes)
+        {
+            foreach (Node n2 in outLayer.nodes)
+            {
+                Connector con = new Connector(n, n2, 0.5d);
+                n.AddForwardConnector(con);
+                n2.AddBackwardConnector(con);
+            }
+        }
+
+        if (addBias == true)
+        {
+            Node biasnode = new Node("bias", 1d, true);
+            // connect bias node to other nodes excluding input layer
+            for (int i = 1; i < network.layers.Count; i++)
+            {
+                foreach (Node n in network.layers[i].nodes)
+                {
+                    Connector con = new Connector(biasnode, n, 0.5d);
+                    biasnode.AddForwardConnector(con);
+                    n.AddBackwardConnector(con);
+                }
+            }
+            network.biasnode = biasnode;
+        }
+        else
+        {
+            network.biasnode = new Node("bias", 0d, true);
         }
     }
-    */
 }
