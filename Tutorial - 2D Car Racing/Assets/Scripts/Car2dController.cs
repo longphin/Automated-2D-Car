@@ -15,10 +15,15 @@ public class Car2dController : MonoBehaviour {
     private static readonly char[] nodeNamePrefix = { 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z' };
     //float minSlippyVelocity = 1.5f;	// <--- Exercise for the viewer
     private bool useAI = false; // AI with neural network not fully implemented
-    private bool turnRight = false, turnLeft = false, turnForward = true, turnBackward = false;
+    private bool turnRight = false, turnLeft = false, turnForward = false, turnBackward = false;
     private float rightspeed = 0f;
     private float leftspeed = 0f;
     private int rightpressLength = 0, leftpressLength = 0;
+
+    // sight directions
+    private Vector2[] sightDirections = new Vector2[180-1]; // 180 points. The -1 is because array is 0-based
+
+    public Transform testTransform;
 
     public List<SightObjects> sightList = new List<SightObjects>();
 
@@ -31,7 +36,7 @@ public class Car2dController : MonoBehaviour {
             o.index = i++;
         }
 
-        InitializeNetwork(2, true);
+        InitializeNetwork(8, 2, 2, true, new ArcTan());
     }
 
 	void Update() {
@@ -39,7 +44,7 @@ public class Car2dController : MonoBehaviour {
         //Raycasting(sightStartT, sightEndT, indicatorT);
         foreach(SightObjects o in sightList)
         {
-            Debug.Log(o.index.ToString() + " " + o.GetDistToHit());
+            //Debug.Log(o.index.ToString() + " " + o.GetDistToHit());
         }
 	}
 	
@@ -103,6 +108,33 @@ public class Car2dController : MonoBehaviour {
             if (leftpressLength < 0) leftpressLength = 0;
             leftspeed = 0f;
         }
+
+        // update neural network
+        float angleIncrement = 2 * Mathf.PI / sightDirections.Length;
+        float r = 10; // distance of vision
+
+        float carAngle = Mathf.Atan2(transform.right.y, transform.right.x);
+
+        for (int i=0; i<sightDirections.Length; i++)
+        {
+            float x = transform.position.x + r * Mathf.Cos(carAngle + angleIncrement * i);
+            float y = transform.position.y + r * Mathf.Sin(carAngle + angleIncrement * i);
+
+            Vector2 sightVec = new Vector2(x, y);
+            //var hit = Physics2D.Raycast(transform.position, sightVec, 1 << LayerMask.NameToLayer("Edges"));
+            var hit = Physics2D.Linecast(transform.position, sightVec, 1 << LayerMask.NameToLayer("Edges"));
+
+            if (hit.collider != null)
+            {
+                //Debug.Log(hit.collider.gameObject.name);
+                Debug.DrawLine(transform.position, hit.point, Color.red);
+            }
+            else
+            {
+                //Debug.Log("No hit");
+                Debug.DrawLine(transform.position, sightVec, Color.green);
+            }
+        }
         
     }
 
@@ -128,12 +160,14 @@ public class Car2dController : MonoBehaviour {
         }
     }
 
-    private void InitializeNetwork(int numHiddenLayers, bool addBias)
+    private void InitializeNetwork(int inputNodes, int outputNodes, int numHiddenLayers, bool addBias, IActivationFunction af)
     {
         network = new Network();
+        network.activationFunc = af;
 
+        // create network
         Layer inpLayer = new Layer();
-        for (int i = 0; i < 8; i++)
+        for (int i = 0; i < inputNodes; i++)
         {
             Node n = new Node(nodeNamePrefix[0] + i.ToString());
             inpLayer.AddNode(n);
@@ -145,7 +179,7 @@ public class Car2dController : MonoBehaviour {
             Layer hiddenLayer = new Layer();
 
             string res = new String(nodeNamePrefix[(numLayer + 1) % nodeNamePrefix.Length], (numLayer + 1) / nodeNamePrefix.Length + 1);
-            for (int i = 0; i < 8; i++)
+            for (int i = 0; i < inputNodes; i++)
             {
                 Node n = new Node(res + i.ToString());
                 hiddenLayer.AddNode(n);
@@ -172,7 +206,7 @@ public class Car2dController : MonoBehaviour {
         Layer outLayer = new Layer();
 
         string reso = new String(nodeNamePrefix[(numHiddenLayers + 1) % nodeNamePrefix.Length], (numHiddenLayers + 1) / nodeNamePrefix.Length + 1);
-        for (int i = 0; i < 2; i++)
+        for (int i = 0; i < outputNodes; i++)
         {
             Node n = new Node(reso + i.ToString());
             outLayer.AddNode(n);
@@ -208,5 +242,8 @@ public class Car2dController : MonoBehaviour {
         {
             network.biasnode = new Node("bias", 0d, true);
         }
+
+        // initialize
+        network.initializeWeights();
     }
 }
