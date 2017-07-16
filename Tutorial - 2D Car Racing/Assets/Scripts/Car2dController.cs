@@ -20,12 +20,17 @@ public class Car2dController : MonoBehaviour {
     private float leftspeed = 0f;
     private int rightpressLength = 0, leftpressLength = 0;
 
-    // sight directions
-    private Vector2[] sightDirections = new Vector2[180-1]; // 180 points. The -1 is because array is 0-based
-
     public Transform testTransform;
 
     public List<SightObjects> sightList = new List<SightObjects>();
+
+    private float fValue; // used for custom input smoothing
+
+    // sight directions
+    private static Int16 numberOfSights = 180;
+    //private Vector2[] sightDirections = new Vector2[numberOfSights];
+    private float r = 10; // distance of vision
+    private float angleIncrement = 2 * Mathf.PI / numberOfSights;
 
     // Use this for initialization
     void Start () {
@@ -78,7 +83,8 @@ public class Car2dController : MonoBehaviour {
 		// proportional to your current forward speed (you are converting some
 		// forward speed into sideway force)
 		float tf = Mathf.Lerp(0, torqueForce, rb.velocity.magnitude / 2);
-        //rb.angularVelocity = Input.GetAxis("Horizontal") * tf;
+        rb.angularVelocity = CustomInputSmoothing() * tf;//Input.GetAxis("Horizontal") * tf;
+        /*
         if(Input.GetButton("Right")) {
             rightpressLength += 1;
             leftspeed = 0f;
@@ -108,20 +114,17 @@ public class Car2dController : MonoBehaviour {
             if (leftpressLength < 0) leftpressLength = 0;
             leftspeed = 0f;
         }
+        */
 
         // update neural network
-        float angleIncrement = 2 * Mathf.PI / sightDirections.Length;
-        float r = 10; // distance of vision
-
         float carAngle = Mathf.Atan2(transform.right.y, transform.right.x);
 
-        for (int i=0; i<sightDirections.Length; i++)
+        for (int i=0; i<numberOfSights; i++)
         {
             float x = transform.position.x + r * Mathf.Cos(carAngle + angleIncrement * i);
             float y = transform.position.y + r * Mathf.Sin(carAngle + angleIncrement * i);
 
             Vector2 sightVec = new Vector2(x, y);
-            //var hit = Physics2D.Raycast(transform.position, sightVec, 1 << LayerMask.NameToLayer("Edges"));
             var hit = Physics2D.Linecast(transform.position, sightVec, 1 << LayerMask.NameToLayer("Edges"));
 
             if (hit.collider != null)
@@ -136,6 +139,21 @@ public class Car2dController : MonoBehaviour {
             }
         }
         
+    }
+
+    // Since GetAxis() is a built in Unity function that only works when key is held down, it cannot be used for script.
+    // A customInputSmoothing is used to do the same thing, but can be used outside of input.
+    // credit: fafase http://answers.unity3d.com/questions/958683/using-unitys-same-smoothing-from-getaxis-on-arrow.html
+    private float CustomInputSmoothing()
+    {
+        // this is to simulate Unity's key input smoothing
+        float sensitivity = 3f;
+        float dead = 0.001f;
+
+        float target = Input.GetAxisRaw("Horizontal");
+        fValue = Mathf.MoveTowards(fValue, target, sensitivity * Time.deltaTime);
+
+        return (Mathf.Abs(fValue) < dead) ? 0f : fValue;
     }
 
 	Vector2 ForwardVelocity() {
