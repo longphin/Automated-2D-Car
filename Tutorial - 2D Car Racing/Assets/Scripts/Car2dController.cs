@@ -14,11 +14,7 @@ public class Car2dController : MonoBehaviour {
     private Network network;
     private static readonly char[] nodeNamePrefix = { 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z' };
     //float minSlippyVelocity = 1.5f;	// <--- Exercise for the viewer
-    private bool useAI = false; // AI with neural network not fully implemented
-    private bool turnRight = false, turnLeft = false, turnForward = false, turnBackward = false;
-    private float rightspeed = 0f;
-    private float leftspeed = 0f;
-    private int rightpressLength = 0, leftpressLength = 0;
+    private bool useAI = true; // AI with neural network not fully implemented
 
     public Transform testTransform;
 
@@ -28,12 +24,26 @@ public class Car2dController : MonoBehaviour {
 
     // sight directions
     private static Int16 numberOfSights = 180;
+    private Int16 numberOfOutputs = 2;
     //private Vector2[] sightDirections = new Vector2[numberOfSights];
     private float r = 10; // distance of vision
     private float angleIncrement = 2 * Mathf.PI / numberOfSights;
 
+    private Vector2 startPosition;
+    private Quaternion startAngle;
+    private Vector2 startVelocity;
+
+    private Rigidbody2D rb;
+
     // Use this for initialization
     void Start () {
+        rb = GetComponent<Rigidbody2D>();
+
+        // get initial state
+        startPosition = transform.position;
+        startAngle = transform.rotation;
+        startVelocity = rb.velocity;
+        
         //StartCoroutine(waitForCarPhysics());
         int i = 0;
         foreach(SightObjects o in sightList)
@@ -41,7 +51,8 @@ public class Car2dController : MonoBehaviour {
             o.index = i++;
         }
 
-        InitializeNetwork(8, 2, 2, true, new ArcTan());
+        InitializeNetwork(numberOfSights, numberOfOutputs, 1, true, new Sigmoid());//ArcTan());
+        inputSightDistancesToNeuralNetwork();
     }
 
 	void Update() {
@@ -55,7 +66,21 @@ public class Car2dController : MonoBehaviour {
 	
 	// Update is called once per frame
 	void FixedUpdate () {
-		Rigidbody2D rb = GetComponent<Rigidbody2D>();
+        double[] trueOutput = new double[numberOfOutputs];
+        trueOutput = network.GetOutputs();
+
+        for(int i = 0; i<trueOutput.Length; i++)
+        {
+            if (trueOutput[i] < network.activationFunc.cutoff())
+                trueOutput[i] = -1;
+            else
+                trueOutput[i] = 1;
+        }
+        double totalerror = network.getError(trueOutput);
+        //Debug.Log("no hit error: " + totalerror.ToString());
+        network.backPropogate(trueOutput);
+
+        double[] outputs = network.GetOutputs();
 
 		float driftFactor = driftFactorSticky;
 		if(RightVelocity().magnitude > maxStickyVelocity) {
@@ -64,13 +89,14 @@ public class Car2dController : MonoBehaviour {
 
 		rb.velocity = ForwardVelocity() + RightVelocity()*driftFactor;
 
-		if(Input.GetButton("Accelerate") || (useAI == true && turnForward == true)) {
+
+		if(Input.GetButton("Accelerate") || (useAI == true && outputs[0]>0)) {
 			rb.AddForce( transform.up * speedForce );
 
 			// Consider using rb.AddForceAtPosition to apply force twice, at the position
 			// of the rear tires/tyres
 		}
-		if(Input.GetButton("Brakes") || (useAI == true && turnBackward == true)) {
+		if(Input.GetButton("Brakes") || (useAI == true && outputs[0]<0)) {
 			rb.AddForce( transform.up * -speedForce/2f );
             
 			// Consider using rb.AddForceAtPosition to apply force twice, at the position
@@ -83,7 +109,7 @@ public class Car2dController : MonoBehaviour {
 		// proportional to your current forward speed (you are converting some
 		// forward speed into sideway force)
 		float tf = Mathf.Lerp(0, torqueForce, rb.velocity.magnitude / 2);
-        rb.angularVelocity = CustomInputSmoothing() * tf;//Input.GetAxis("Horizontal") * tf;
+        rb.angularVelocity = CustomInputSmoothing((float)outputs[1]) * tf;//Input.GetAxis("Horizontal") * tf;
         /*
         if(Input.GetButton("Right")) {
             rightpressLength += 1;
@@ -117,8 +143,9 @@ public class Car2dController : MonoBehaviour {
         */
 
         // update neural network
+        /*
         float carAngle = Mathf.Atan2(transform.right.y, transform.right.x);
-
+        double[] sightDistances = new double[numberOfSights];
         for (int i=0; i<numberOfSights; i++)
         {
             float x = transform.position.x + r * Mathf.Cos(carAngle + angleIncrement * i);
@@ -131,26 +158,89 @@ public class Car2dController : MonoBehaviour {
             {
                 //Debug.Log(hit.collider.gameObject.name);
                 Debug.DrawLine(transform.position, hit.point, Color.red);
+                sightDistances[i] = hit.distance;
             }
             else
             {
                 //Debug.Log("No hit");
+                sightDistances[i] = r;
                 Debug.DrawLine(transform.position, sightVec, Color.green);
             }
         }
-        
+
+        network.forwardPropogate(sightDistances);
+        */
+        inputSightDistancesToNeuralNetwork();
     }
 
+    void OnCollisionEnter2D(Collision2D col)
+    {
+        if(col.gameObject.layer == LayerMask.NameToLayer("Edges"))
+        {
+            //Debug.Log("hit " + col.gameObject.layer);
+            double[] trueOutput = new double[numberOfOutputs];
+            trueOutput = network.GetOutputs();
+
+            for (int i = 0; i < trueOutput.Length; i++)
+            {
+                if (trueOutput[i] < 0)
+                    trueOutput[i] = 1;
+                else
+                    trueOutput[i] = -1;
+            }
+            double totalerror = network.getError(trueOutput);
+            Debug.Log("hit error: " + totalerror.ToString());
+            network.backPropogate(trueOutput);
+            
+            rb.angularVelocity = 0;
+            transform.position = startPosition;
+            transform.rotation = startAngle;
+            rb.velocity = startVelocity;
+        }
+    }
+
+    private void inputSightDistancesToNeuralNetwork()
+    {
+        // update neural network
+        float carAngle = Mathf.Atan2(transform.right.y, transform.right.x);
+        double[] sightDistances = new double[numberOfSights];
+        for (int i = 0; i < numberOfSights; i++)
+        {
+            float x = transform.position.x + r * Mathf.Cos(carAngle + angleIncrement * i);
+            float y = transform.position.y + r * Mathf.Sin(carAngle + angleIncrement * i);
+
+            Vector2 sightVec = new Vector2(x, y);
+            var hit = Physics2D.Linecast(transform.position, sightVec, 1 << LayerMask.NameToLayer("Edges"));
+
+            if (hit.collider != null)
+            {
+                //Debug.Log(hit.collider.gameObject.name);
+                Debug.DrawLine(transform.position, hit.point, Color.red);
+                sightDistances[i] = hit.distance;
+            }
+            else
+            {
+                //Debug.Log("No hit");
+                sightDistances[i] = r;
+                Debug.DrawLine(transform.position, sightVec, Color.green);
+            }
+        }
+
+        network.forwardPropogate(sightDistances);
+    }
     // Since GetAxis() is a built in Unity function that only works when key is held down, it cannot be used for script.
     // A customInputSmoothing is used to do the same thing, but can be used outside of input.
     // credit: fafase http://answers.unity3d.com/questions/958683/using-unitys-same-smoothing-from-getaxis-on-arrow.html
-    private float CustomInputSmoothing()
+    private float CustomInputSmoothing(float direction)
     {
         // this is to simulate Unity's key input smoothing
         float sensitivity = 3f;
         float dead = 0.001f;
 
-        float target = Input.GetAxisRaw("Horizontal");
+        float target;
+        if(useAI) target = direction;
+        else target = Input.GetAxisRaw("Horizontal");
+
         fValue = Mathf.MoveTowards(fValue, target, sensitivity * Time.deltaTime);
 
         return (Mathf.Abs(fValue) < dead) ? 0f : fValue;
@@ -238,6 +328,7 @@ public class Car2dController : MonoBehaviour {
                 Connector con = new Connector(n, n2, 0.5d);
                 n.AddForwardConnector(con);
                 n2.AddBackwardConnector(con);
+                n2.output = 1;
             }
         }
 
@@ -263,5 +354,18 @@ public class Car2dController : MonoBehaviour {
 
         // initialize
         network.initializeWeights();
+
+        // print
+        /*
+        foreach(Layer l in network.layers)
+        {
+            string str = "";
+            foreach(Node n in l.nodes)
+            {
+                str += " " + n.name;
+            }
+            Debug.Log(str);
+        }
+        */
     }
 }
