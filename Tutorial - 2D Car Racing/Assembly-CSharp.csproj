@@ -52,6 +52,7 @@
      <Compile Include="Assets\Scripts\ChangeBrakeColor.cs" />
      <Compile Include="Assets\Scripts\EdgeDetection.cs" />
      <Compile Include="Assets\Scripts\NeuralNetworkController.cs" />
+     <Compile Include="Assets\Scripts\PathTracker.cs" />
      <Compile Include="Assets\Scripts\SightObjects.cs" />
  <Reference Include="UnityEngine.UI">
  <HintPath>D:/Programming Software/Unity/Editor/Data/UnityExtensions/Unity/GUISystem/UnityEngine.UI.dll</HintPath>

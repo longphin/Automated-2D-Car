@@ -24,7 +24,9 @@ public class Car2dController : MonoBehaviour {
 
     // sight directions
     private static Int16 numberOfSights = 180;
+    private static Int16 otherInputs = 5;
     private Int16 numberOfOutputs = 2;
+    private static Int16 numberOfHiddenLayers = 2;
     //private Vector2[] sightDirections = new Vector2[numberOfSights];
     private float r = 10; // distance of vision
     private float angleIncrement = 2 * Mathf.PI / numberOfSights;
@@ -34,6 +36,9 @@ public class Car2dController : MonoBehaviour {
     private Vector2 startVelocity;
 
     private Rigidbody2D rb;
+
+    private List<PathTracker> path = new List<PathTracker>();
+    private bool pause = false;
 
     // Use this for initialization
     void Start () {
@@ -51,34 +56,53 @@ public class Car2dController : MonoBehaviour {
             o.index = i++;
         }
 
-        InitializeNetwork(numberOfSights, numberOfOutputs, 1, true, new Sigmoid());//ArcTan());
+        InitializeNetwork(numberOfSights, numberOfOutputs, numberOfHiddenLayers, true, new Sigmoid());//ArcTan());
         inputSightDistancesToNeuralNetwork();
     }
 
 	void Update() {
-        // check for button up/down here, then set a bool that you will use in FixedUpdate
-        //Raycasting(sightStartT, sightEndT, indicatorT);
-        foreach(SightObjects o in sightList)
-        {
-            //Debug.Log(o.index.ToString() + " " + o.GetDistToHit());
-        }
+
 	}
 	
-	// Update is called once per frame
 	void FixedUpdate () {
         double[] trueOutput = new double[numberOfOutputs];
+
         trueOutput = network.GetOutputs();
 
-        for(int i = 0; i<trueOutput.Length; i++)
+        PathTracker pt = new PathTracker(network.GetInputs(), network.GetOutputs());
+        path.Add(pt);
+
+        if(path.Count > 50)
         {
-            if (trueOutput[i] < network.activationFunc.cutoff())
-                trueOutput[i] = -1;
-            else
-                trueOutput[i] = 1;
+            pause = true;
+            PathTracker p = path[0];
+            network.forwardPropogate(p.getInputs());
+            network.backPropogate(p.getOutputsTrue(1d));
+            path.RemoveAt(0);
+            pause = false;
         }
-        double totalerror = network.getError(trueOutput);
-        //Debug.Log("no hit error: " + totalerror.ToString());
+        /*
+        string debugtxt = "";
+        for(int i = 0;i<trueOutput.Length; i++)
+        {
+            debugtxt += " " + trueOutput[i].ToString();
+        }
+        Debug.Log(debugtxt);
+        */
+
+        /*
+        double[] trueOutputs = new double[numberOfOutputs + 1];
+        trueOutput.CopyTo(trueOutputs, 0);
+        trueOutputs[trueOutputs.Length-1] = 1;
+        string tmp = "";
+        for(int i =0; i<trueOutputs.Length;i++)
+        {
+            tmp += " " + trueOutputs[i].ToString();
+        }
+
+        double totalerror = network.getError(trueOutputs);
         network.backPropogate(trueOutput);
+        */
 
         double[] outputs = network.GetOutputs();
 
@@ -109,67 +133,9 @@ public class Car2dController : MonoBehaviour {
 		// proportional to your current forward speed (you are converting some
 		// forward speed into sideway force)
 		float tf = Mathf.Lerp(0, torqueForce, rb.velocity.magnitude / 2);
-        rb.angularVelocity = CustomInputSmoothing((float)outputs[1]) * tf;//Input.GetAxis("Horizontal") * tf;
-        /*
-        if(Input.GetButton("Right")) {
-            rightpressLength += 1;
-            leftspeed = 0f;
-            rightspeed += .03f + 0.0001f*rightpressLength;
-            if (rightspeed > 1) rightspeed = 1;
 
-            rb.angularVelocity = rightspeed * tf;
-        }
-        else
-        {
-            rightpressLength -= 1;
-            if (rightpressLength < 0) rightpressLength = 0;
-            rightspeed = 0f;
-        }
-        if (Input.GetButton("Left"))
-        {
-            leftpressLength += 1;
-            rightspeed = 0f;
-            leftspeed += .03f + 0.0001f * leftpressLength;
-            if (leftspeed > 1) leftspeed = 1;
-
-            rb.angularVelocity = -leftspeed * tf;
-        }
-        else
-        {
-            leftpressLength -= 1;
-            if (leftpressLength < 0) leftpressLength = 0;
-            leftspeed = 0f;
-        }
-        */
-
-        // update neural network
-        /*
-        float carAngle = Mathf.Atan2(transform.right.y, transform.right.x);
-        double[] sightDistances = new double[numberOfSights];
-        for (int i=0; i<numberOfSights; i++)
-        {
-            float x = transform.position.x + r * Mathf.Cos(carAngle + angleIncrement * i);
-            float y = transform.position.y + r * Mathf.Sin(carAngle + angleIncrement * i);
-
-            Vector2 sightVec = new Vector2(x, y);
-            var hit = Physics2D.Linecast(transform.position, sightVec, 1 << LayerMask.NameToLayer("Edges"));
-
-            if (hit.collider != null)
-            {
-                //Debug.Log(hit.collider.gameObject.name);
-                Debug.DrawLine(transform.position, hit.point, Color.red);
-                sightDistances[i] = hit.distance;
-            }
-            else
-            {
-                //Debug.Log("No hit");
-                sightDistances[i] = r;
-                Debug.DrawLine(transform.position, sightVec, Color.green);
-            }
-        }
-
-        network.forwardPropogate(sightDistances);
-        */
+        rb.angularVelocity = CustomInputSmoothing((float)outputs[1]) * tf;// * (outputs[1] < network.activationFunc.cutoff() ? -1f : 1f);//Input.GetAxis("Horizontal") * tf;
+        Debug.Log(rb.angularVelocity.ToString());
         inputSightDistancesToNeuralNetwork();
     }
 
@@ -177,25 +143,42 @@ public class Car2dController : MonoBehaviour {
     {
         if(col.gameObject.layer == LayerMask.NameToLayer("Edges"))
         {
-            //Debug.Log("hit " + col.gameObject.layer);
             double[] trueOutput = new double[numberOfOutputs];
             trueOutput = network.GetOutputs();
 
-            for (int i = 0; i < trueOutput.Length; i++)
+            PathTracker pt = new PathTracker(network.GetInputs(), network.GetOutputs());
+            path.Add(pt);
+
+            /*
+            double[] trueOutputs = new double[numberOfOutputs + 1];
+            trueOutput.CopyTo(trueOutputs, 0);
+            trueOutputs[trueOutputs.Length-1] = -1;
+            string tmp = "";
+            for (int i = 0; i < trueOutputs.Length; i++)
             {
-                if (trueOutput[i] < 0)
-                    trueOutput[i] = 1;
-                else
-                    trueOutput[i] = -1;
+                tmp += " " + trueOutputs[i].ToString();
             }
-            double totalerror = network.getError(trueOutput);
-            Debug.Log("hit error: " + totalerror.ToString());
-            network.backPropogate(trueOutput);
+            double totalerror = network.getError(trueOutputs);
             
+            network.backPropogate(trueOutput);
+            */
+
             rb.angularVelocity = 0;
             transform.position = startPosition;
             transform.rotation = startAngle;
             rb.velocity = startVelocity;
+            pause = true;
+            foreach (PathTracker p in path)
+            {
+                network.forwardPropogate(p.getInputs());
+
+                network.backPropogate(p.getOutputsTrue(-1d));
+            }
+            Debug.Log("hit : " + path.Count.ToString());
+            path.Clear();
+            pause = false;
+
+            //network.initializeWeightsMinor();
         }
     }
 
@@ -203,7 +186,7 @@ public class Car2dController : MonoBehaviour {
     {
         // update neural network
         float carAngle = Mathf.Atan2(transform.right.y, transform.right.x);
-        double[] sightDistances = new double[numberOfSights];
+        double[] sightDistances = new double[numberOfSights+otherInputs];
         for (int i = 0; i < numberOfSights; i++)
         {
             float x = transform.position.x + r * Mathf.Cos(carAngle + angleIncrement * i);
@@ -214,18 +197,23 @@ public class Car2dController : MonoBehaviour {
 
             if (hit.collider != null)
             {
-                //Debug.Log(hit.collider.gameObject.name);
                 Debug.DrawLine(transform.position, hit.point, Color.red);
                 sightDistances[i] = hit.distance;
             }
             else
             {
-                //Debug.Log("No hit");
                 sightDistances[i] = r;
                 Debug.DrawLine(transform.position, sightVec, Color.green);
             }
         }
 
+        sightDistances[numberOfSights] = rb.velocity.x;
+        sightDistances[numberOfSights + 1] = rb.velocity.y;
+        sightDistances[numberOfSights + 2] = transform.rotation.x;
+        sightDistances[numberOfSights + 3] = transform.rotation.y;
+        sightDistances[numberOfSights + 4] = rb.angularVelocity;
+
+        // rb.velocity, transform.rotation, rb.angularvelocity
         network.forwardPropogate(sightDistances);
     }
     // Since GetAxis() is a built in Unity function that only works when key is held down, it cannot be used for script.
@@ -240,8 +228,11 @@ public class Car2dController : MonoBehaviour {
         float target;
         if(useAI) target = direction;
         else target = Input.GetAxisRaw("Horizontal");
-
+        
         fValue = Mathf.MoveTowards(fValue, target, sensitivity * Time.deltaTime);
+
+        if (fValue < -1) fValue = -1;
+        if (fValue > 1) fValue = 1;
 
         return (Mathf.Abs(fValue) < dead) ? 0f : fValue;
     }
@@ -253,20 +244,6 @@ public class Car2dController : MonoBehaviour {
 	Vector2 RightVelocity() {
 		return transform.right * Vector2.Dot( GetComponent<Rigidbody2D>().velocity, transform.right );
 	}
-
-    void Raycasting(Transform startpoint, Transform endpoint)
-    {
-        var hit = Physics2D.Linecast(startpoint.position, endpoint.position, 1 << LayerMask.NameToLayer("Edges"));
-
-        if (hit.collider != null)
-        {
-            Debug.DrawLine(startpoint.position, hit.point, Color.green);
-        }
-        else
-        {
-            Debug.DrawLine(startpoint.position, endpoint.position, Color.gray);
-        }
-    }
 
     private void InitializeNetwork(int inputNodes, int outputNodes, int numHiddenLayers, bool addBias, IActivationFunction af)
     {
@@ -354,18 +331,5 @@ public class Car2dController : MonoBehaviour {
 
         // initialize
         network.initializeWeights();
-
-        // print
-        /*
-        foreach(Layer l in network.layers)
-        {
-            string str = "";
-            foreach(Node n in l.nodes)
-            {
-                str += " " + n.name;
-            }
-            Debug.Log(str);
-        }
-        */
     }
 }

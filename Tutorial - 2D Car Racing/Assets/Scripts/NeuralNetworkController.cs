@@ -208,8 +208,25 @@ public class Network
         return (rnd.NextDouble() * (max - min) + min);
     }
 
+    public double[] GetInputs()
+    {
+        double[] res = new double[layers[0].nodes.Count];
+        int nonBiasNodeIterator = 0;
+        for(int i = 0; i<layers[0].nodes.Count; i++)
+        {
+            Node node = layers[0].nodes[i];
+            if (node.isBiasNode == false) // this check shouldn't be needed
+            {
+                res[nonBiasNodeIterator] = node.output;
+
+                nonBiasNodeIterator += 1;
+            }
+        }
+        return (res);
+    }
     public double[] GetOutputs()
     {
+        //layers[layers.Count - 1].nodes[1].output = layers[layers.Count - 1].nodes[1].output < 0 ? -1 : 1;
         double[] res = new double[layers[layers.Count-1].nodes.Count];
         int nonBiasNodeIterator = 0;
         for (int i = 0; i < layers[layers.Count - 1].nodes.Count; i++)
@@ -222,6 +239,7 @@ public class Network
                 nonBiasNodeIterator += 1;
             }
         }
+
         return (res);
     }
 
@@ -240,6 +258,20 @@ public class Network
         foreach (Connector con in biasnode.forwardConnectors)
         {
             con.weight = GetRandomDouble(getrandom, -.3, .3); //(double)getrandom.Next(1, 100) / (double)200;
+        }
+    }
+
+    public void initializeWeightsMinor()
+    {
+        foreach (Layer layer in layers)
+        {
+            foreach (Node node in layer.nodes)
+            {
+                foreach (Connector connector in node.forwardConnectors)
+                {
+                    connector.weight = connector.weight*GetRandomDouble(getrandom, 0d, 0.1d);//(double)getrandom.Next(1,100)/(double)200;
+                }
+            }
         }
     }
 
