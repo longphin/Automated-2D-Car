@@ -25,7 +25,7 @@ public class Car2dController : MonoBehaviour {
     // sight directions
     private static Int16 numberOfSights = 180;
     private static Int16 otherInputs = 5;
-    private Int16 numberOfOutputs = 2;
+    private Int16 numberOfOutputs = 3;
     private static Int16 numberOfHiddenLayers = 2;
     //private Vector2[] sightDirections = new Vector2[numberOfSights];
     private float r = 10; // distance of vision
@@ -39,9 +39,11 @@ public class Car2dController : MonoBehaviour {
 
     private List<PathTracker> path = new List<PathTracker>();
     private bool pause = false;
+    private double runDuration;
 
     // Use this for initialization
     void Start () {
+        runDuration = 0;
         rb = GetComponent<Rigidbody2D>();
 
         // get initial state
@@ -56,7 +58,7 @@ public class Car2dController : MonoBehaviour {
             o.index = i++;
         }
 
-        InitializeNetwork(numberOfSights, numberOfOutputs, numberOfHiddenLayers, true, new Sigmoid());//ArcTan());
+        InitializeNetwork(numberOfSights, numberOfOutputs, numberOfHiddenLayers, true, new ArcTan());//ArcTan());
         inputSightDistancesToNeuralNetwork();
     }
 
@@ -65,6 +67,7 @@ public class Car2dController : MonoBehaviour {
 	}
 	
 	void FixedUpdate () {
+        runDuration += Time.deltaTime;
         double[] trueOutput = new double[numberOfOutputs];
 
         trueOutput = network.GetOutputs();
@@ -72,12 +75,12 @@ public class Car2dController : MonoBehaviour {
         PathTracker pt = new PathTracker(network.GetInputs(), network.GetOutputs());
         path.Add(pt);
 
-        if(path.Count > 50)
+        if(path.Count > 5)
         {
             pause = true;
             PathTracker p = path[0];
             network.forwardPropogate(p.getInputs());
-            network.backPropogate(p.getOutputsTrue(1d));
+            network.backPropogate(p.getOutputsTrue(-1d, -1d), 10*(runDuration > 1 ? 1 : (1 - runDuration) / 5));
             path.RemoveAt(0);
             pause = false;
         }
@@ -112,20 +115,21 @@ public class Car2dController : MonoBehaviour {
 		}
 
 		rb.velocity = ForwardVelocity() + RightVelocity()*driftFactor;
-
-
-		if(Input.GetButton("Accelerate") || (useAI == true && outputs[0]>0)) {
+        
+		if(Input.GetButton("Accelerate") || (useAI == true)) {
 			rb.AddForce( transform.up * speedForce );
 
 			// Consider using rb.AddForceAtPosition to apply force twice, at the position
 			// of the rear tires/tyres
 		}
+        /*
 		if(Input.GetButton("Brakes") || (useAI == true && outputs[0]<0)) {
 			rb.AddForce( transform.up * -speedForce/2f );
             
 			// Consider using rb.AddForceAtPosition to apply force twice, at the position
 			// of the rear tires/tyres
 		}
+        */
 
 		// If you are using positional wheels in your physics, then you probably
 		// instead of adding angular momentum or torque, you'll instead want
@@ -133,9 +137,9 @@ public class Car2dController : MonoBehaviour {
 		// proportional to your current forward speed (you are converting some
 		// forward speed into sideway force)
 		float tf = Mathf.Lerp(0, torqueForce, rb.velocity.magnitude / 2);
-
-        rb.angularVelocity = CustomInputSmoothing((float)outputs[1]) * tf;// * (outputs[1] < network.activationFunc.cutoff() ? -1f : 1f);//Input.GetAxis("Horizontal") * tf;
-        Debug.Log(rb.angularVelocity.ToString());
+        float smoothing = CustomInputSmoothing((float)outputs[1], (float)outputs[2]);
+        rb.angularVelocity = smoothing * tf;// * (outputs[1] < network.activationFunc.cutoff() ? -1f : 1f);//Input.GetAxis("Horizontal") * tf;
+        Debug.Log("smooth " + smoothing.ToString());
         inputSightDistancesToNeuralNetwork();
     }
 
@@ -172,11 +176,13 @@ public class Car2dController : MonoBehaviour {
             {
                 network.forwardPropogate(p.getInputs());
 
-                network.backPropogate(p.getOutputsTrue(-1d));
+                network.backPropogate(p.getOutputsTrue(1d, 1d), 10*(runDuration>5 ? 1 : (5-runDuration)/5));
             }
             Debug.Log("hit : " + path.Count.ToString());
             path.Clear();
             pause = false;
+
+            runDuration = 0;
 
             //network.initializeWeightsMinor();
         }
@@ -219,14 +225,17 @@ public class Car2dController : MonoBehaviour {
     // Since GetAxis() is a built in Unity function that only works when key is held down, it cannot be used for script.
     // A customInputSmoothing is used to do the same thing, but can be used outside of input.
     // credit: fafase http://answers.unity3d.com/questions/958683/using-unitys-same-smoothing-from-getaxis-on-arrow.html
-    private float CustomInputSmoothing(float direction)
+    private float CustomInputSmoothing(float direction, float rightDirection)
     {
         // this is to simulate Unity's key input smoothing
         float sensitivity = 3f;
         float dead = 0.001f;
 
         float target;
-        if(useAI) target = direction;
+        if (useAI)
+        {
+            target = direction-rightDirection;
+        }
         else target = Input.GetAxisRaw("Horizontal");
         
         fValue = Mathf.MoveTowards(fValue, target, sensitivity * Time.deltaTime);
@@ -264,7 +273,7 @@ public class Car2dController : MonoBehaviour {
             Layer hiddenLayer = new Layer();
 
             string res = new String(nodeNamePrefix[(numLayer + 1) % nodeNamePrefix.Length], (numLayer + 1) / nodeNamePrefix.Length + 1);
-            for (int i = 0; i < inputNodes; i++)
+            for (int i = 0; i < outputNodes; i++)
             {
                 Node n = new Node(res + i.ToString());
                 hiddenLayer.AddNode(n);
@@ -305,8 +314,20 @@ public class Car2dController : MonoBehaviour {
                 Connector con = new Connector(n, n2, 0.5d);
                 n.AddForwardConnector(con);
                 n2.AddBackwardConnector(con);
-                n2.output = 1;
+                //n2.output = 1;
             }
+        }
+
+        // create final output layer with 1 node
+        Layer finalLayer = new Layer();
+        Node finalnode = new Node("final");
+        finalLayer.AddNode(finalnode);
+        network.AddLayer(finalLayer);
+        foreach(Node n in outLayer.nodes)
+        {
+            Connector con = new Connector(n, finalnode, 0.5d);
+            n.AddForwardConnector(con);
+            finalnode.AddBackwardConnector(con);
         }
 
         if (addBias == true)

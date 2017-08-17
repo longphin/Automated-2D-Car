@@ -85,6 +85,7 @@ public interface IActivationFunction
     double activationFunction(double x);
     double activationFunction_Prime(double x);
     double cutoff();
+    double activationFunctionNormalize(double x);
 }
 public class Sigmoid : IActivationFunction
 {
@@ -99,6 +100,10 @@ public class Sigmoid : IActivationFunction
     public double cutoff()
     {
         return (0.5d);
+    }
+    public double activationFunctionNormalize(double x)
+    {
+        return (2*(x - 0.5));
     }
 }
 
@@ -116,6 +121,10 @@ public class HyperbolicTangent : IActivationFunction
     {
         return (0d);
     }
+    public double activationFunctionNormalize(double x)
+    {
+        return (x/(3-2*Math.Sqrt(2))); // assuming min = 0 (at x=0)
+    }
 }
 
 public class ArcTan : IActivationFunction
@@ -131,6 +140,10 @@ public class ArcTan : IActivationFunction
     public double cutoff()
     {
         return (0d);
+    }
+    public double activationFunctionNormalize(double x)
+    {
+        return (2*(x-0.5));///(3-2*Math.Sqrt(2))); // assuming min = 0
     }
 }
 
@@ -148,6 +161,10 @@ public class Sinusoidal : IActivationFunction
     {
         return (0d);
     }
+    public double activationFunctionNormalize(double x)
+    {
+        return (x);
+    }
 }
 
 public class Sinc : IActivationFunction
@@ -164,7 +181,12 @@ public class Sinc : IActivationFunction
     }
     public double cutoff()
     {
-        return (0d);
+        return (0.6d);
+        //return (0d);
+    }
+    public double activationFunctionNormalize(double x)
+    {
+        return ((x-(-0.2))/1.2);
     }
 }
 
@@ -180,7 +202,12 @@ public class Guassian : IActivationFunction
     }
     public double cutoff()
     {
-        return (0d);
+        return (0.5d);
+        //return (0d);
+    }
+    public double activationFunctionNormalize(double x)
+    {
+        return (2*(x-0.5));
     }
 }
 
@@ -307,9 +334,17 @@ public class Network
                 }
             }
         }
+
+        // normalize outputs
+        /*
+        foreach(Node node in layers[layers.Count-1].nodes)
+        {
+            node.output = activationFunc.activationFunctionNormalize(node.output);
+        }
+        */
     }
 
-    public void backPropogate(double[] output)
+    public void backPropogate(double[] output, double constant)
     {
         // initialize error layer
         double TotalError = 0;
@@ -319,7 +354,7 @@ public class Network
             Node node = layers[layers.Count - 1].nodes[i];
             if (node.isBiasNode == false) // this check shouldn't be needed
             {
-                node.error = calcActivationFunc_Prime(node.weightedSum) * (output[nonBiasNodeIterator] - node.output);
+                node.error = calcActivationFunc_Prime(node.weightedSum) * (output[nonBiasNodeIterator] - node.output) + constant;
 
                 TotalError += node.error;
                 nonBiasNodeIterator += 1;
@@ -340,18 +375,12 @@ public class Network
         }
 
         // update all weights in network using errors
-        int testint = 0;
         foreach (Layer layer in layers)
         {
             foreach (Node node in layer.nodes)
             {
                 foreach (Connector con in node.forwardConnectors)
                 {
-                    if (testint == 0)
-                    {
-                        //Debug.Log(node.output.ToString());
-                        testint = 1;
-                    }
                     con.weight += alpha * node.output * con.To.error;
                 }
             }
