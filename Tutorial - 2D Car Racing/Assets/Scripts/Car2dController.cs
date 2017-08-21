@@ -40,6 +40,7 @@ public class Car2dController : MonoBehaviour {
     private List<PathTracker> path = new List<PathTracker>();
     private bool pause = false;
     private double runDuration;
+    private double maxDuration = 1;
 
     // Use this for initialization
     void Start () {
@@ -58,7 +59,7 @@ public class Car2dController : MonoBehaviour {
             o.index = i++;
         }
 
-        InitializeNetwork(numberOfSights, numberOfOutputs, numberOfHiddenLayers, true, new ArcTan());//ArcTan());
+        InitializeNetwork(numberOfSights, numberOfOutputs, numberOfHiddenLayers, true, new ArcTan());
         inputSightDistancesToNeuralNetwork();
     }
 
@@ -75,40 +76,22 @@ public class Car2dController : MonoBehaviour {
         PathTracker pt = new PathTracker(network.GetInputs(), network.GetOutputs());
         path.Add(pt);
 
-        if(path.Count > 5)
+        /*
+        if(runDuration>maxDuration)
         {
+            // good path
             pause = true;
             PathTracker p = path[0];
             network.forwardPropogate(p.getInputs());
-            network.backPropogate(p.getOutputsTrue(-1d, -1d), 10*(runDuration > 1 ? 1 : (1 - runDuration) / 5));
+            network.backPropogate(new double[] { network.activationFunc.max() }, runDuration);// (runDuration > maxDuration ? maxDuration : (maxDuration - runDuration) / maxDuration));
+            Debug.Log((p.getOutputs()[0] - 1d).ToString() + " (error)");
             path.RemoveAt(0);
             pause = false;
         }
-        /*
-        string debugtxt = "";
-        for(int i = 0;i<trueOutput.Length; i++)
-        {
-            debugtxt += " " + trueOutput[i].ToString();
-        }
-        Debug.Log(debugtxt);
         */
 
-        /*
-        double[] trueOutputs = new double[numberOfOutputs + 1];
-        trueOutput.CopyTo(trueOutputs, 0);
-        trueOutputs[trueOutputs.Length-1] = 1;
-        string tmp = "";
-        for(int i =0; i<trueOutputs.Length;i++)
-        {
-            tmp += " " + trueOutputs[i].ToString();
-        }
-
-        double totalerror = network.getError(trueOutputs);
-        network.backPropogate(trueOutput);
-        */
-
-        double[] outputs = network.GetOutputs();
-
+        double[] outputs = network.GetMovementOutputs();
+        
 		float driftFactor = driftFactorSticky;
 		if(RightVelocity().magnitude > maxStickyVelocity) {
 			driftFactor = driftFactorSlippy;
@@ -139,8 +122,9 @@ public class Car2dController : MonoBehaviour {
 		float tf = Mathf.Lerp(0, torqueForce, rb.velocity.magnitude / 2);
         float smoothing = CustomInputSmoothing((float)outputs[1], (float)outputs[2]);
         rb.angularVelocity = smoothing * tf;// * (outputs[1] < network.activationFunc.cutoff() ? -1f : 1f);//Input.GetAxis("Horizontal") * tf;
-        Debug.Log("smooth " + smoothing.ToString());
+        //Debug.Log("smooth " + smoothing.ToString());
         inputSightDistancesToNeuralNetwork();
+        network.printNN();
     }
 
     void OnCollisionEnter2D(Collision2D col)
@@ -153,20 +137,6 @@ public class Car2dController : MonoBehaviour {
             PathTracker pt = new PathTracker(network.GetInputs(), network.GetOutputs());
             path.Add(pt);
 
-            /*
-            double[] trueOutputs = new double[numberOfOutputs + 1];
-            trueOutput.CopyTo(trueOutputs, 0);
-            trueOutputs[trueOutputs.Length-1] = -1;
-            string tmp = "";
-            for (int i = 0; i < trueOutputs.Length; i++)
-            {
-                tmp += " " + trueOutputs[i].ToString();
-            }
-            double totalerror = network.getError(trueOutputs);
-            
-            network.backPropogate(trueOutput);
-            */
-
             rb.angularVelocity = 0;
             transform.position = startPosition;
             transform.rotation = startAngle;
@@ -176,9 +146,8 @@ public class Car2dController : MonoBehaviour {
             {
                 network.forwardPropogate(p.getInputs());
 
-                network.backPropogate(p.getOutputsTrue(1d, 1d), 10*(runDuration>5 ? 1 : (5-runDuration)/5));
+                network.backPropogate(new double[] { network.activationFunc.min() }, runDuration);
             }
-            Debug.Log("hit : " + path.Count.ToString());
             path.Clear();
             pause = false;
 

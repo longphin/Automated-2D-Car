@@ -86,6 +86,8 @@ public interface IActivationFunction
     double activationFunction_Prime(double x);
     double cutoff();
     double activationFunctionNormalize(double x);
+    double min();
+    double max();
 }
 public class Sigmoid : IActivationFunction
 {
@@ -104,6 +106,14 @@ public class Sigmoid : IActivationFunction
     public double activationFunctionNormalize(double x)
     {
         return (2*(x - 0.5));
+    }
+    public double min()
+    {
+        return (0);
+    }
+    public double max()
+    {
+        return (1);
     }
 }
 
@@ -125,6 +135,14 @@ public class HyperbolicTangent : IActivationFunction
     {
         return (x/(3-2*Math.Sqrt(2))); // assuming min = 0 (at x=0)
     }
+    public double min()
+    {
+        return (-1000);
+    }
+    public double max()
+    {
+        return (3 - 2 * Math.Sqrt(2));
+    }
 }
 
 public class ArcTan : IActivationFunction
@@ -145,6 +163,14 @@ public class ArcTan : IActivationFunction
     {
         return (2*(x-0.5));///(3-2*Math.Sqrt(2))); // assuming min = 0
     }
+    public double min()
+    {
+        return (-Math.PI / 2);
+    }
+    public double max()
+    {
+        return (Math.PI / 2);
+    }
 }
 
 public class Sinusoidal : IActivationFunction
@@ -164,6 +190,14 @@ public class Sinusoidal : IActivationFunction
     public double activationFunctionNormalize(double x)
     {
         return (x);
+    }
+    public double min()
+    {
+        return (-1);
+    }
+    public double max()
+    {
+        return (1);
     }
 }
 
@@ -188,6 +222,14 @@ public class Sinc : IActivationFunction
     {
         return ((x-(-0.2))/1.2);
     }
+    public double min()
+    {
+        return (-.217234);
+    }
+    public double max()
+    {
+        return (1);
+    }
 }
 
 public class Guassian : IActivationFunction
@@ -208,6 +250,14 @@ public class Guassian : IActivationFunction
     public double activationFunctionNormalize(double x)
     {
         return (2*(x-0.5));
+    }
+    public double min()
+    {
+        return (0);
+    }
+    public double max()
+    {
+        return (1);
     }
 }
 
@@ -263,6 +313,24 @@ public class Network
             {
                 res[nonBiasNodeIterator] = node.output;
                 
+                nonBiasNodeIterator += 1;
+            }
+        }
+
+        return (res);
+    }
+    public double[] GetMovementOutputs()
+    {
+        //layers[layers.Count - 1].nodes[1].output = layers[layers.Count - 1].nodes[1].output < 0 ? -1 : 1;
+        double[] res = new double[layers[layers.Count - 2].nodes.Count];
+        int nonBiasNodeIterator = 0;
+        for (int i = 0; i < layers[layers.Count - 2].nodes.Count; i++)
+        {
+            Node node = layers[layers.Count - 2].nodes[i];
+            if (node.isBiasNode == false) // this check shouldn't be needed
+            {
+                res[nonBiasNodeIterator] = node.output;
+
                 nonBiasNodeIterator += 1;
             }
         }
@@ -354,7 +422,7 @@ public class Network
             Node node = layers[layers.Count - 1].nodes[i];
             if (node.isBiasNode == false) // this check shouldn't be needed
             {
-                node.error = calcActivationFunc_Prime(node.weightedSum) * (output[nonBiasNodeIterator] - node.output) + constant;
+                node.error = calcActivationFunc_Prime(node.weightedSum) * (output[nonBiasNodeIterator] - node.output - constant);// - constant;
 
                 TotalError += node.error;
                 nonBiasNodeIterator += 1;
@@ -443,6 +511,28 @@ public class Network
         }
 
         return (TotalError);
+    }
+
+    public void printNN()
+    {
+        foreach(Layer l in layers)
+        {
+            String s = "";
+            foreach(Node n in l.nodes)
+            {
+                s += " " + n.name + " " + n.output.ToString();
+                if(l.Equals(layers[layers.Count-2]))
+                {
+                    foreach(Connector con in n.forwardConnectors)
+                    {
+                        s += " (x" + con.weight.ToString() + ", ";
+                    }
+                    s += ")";
+                }
+            }
+            Debug.Log(s);
+        }
+        Debug.Log("\n");
     }
 }
 

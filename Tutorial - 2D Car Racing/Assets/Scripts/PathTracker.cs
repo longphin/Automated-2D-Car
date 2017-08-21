@@ -37,12 +37,12 @@ public class PathTracker {
     {
         return (outputs);
     }
-    public double[] getOutputsTrue(double trueForward, double trueRight)
+    public double[] getOutputsTrue(double goodPath)
     {
         double[] res = new double[outputs.Length+1];
         outputs.CopyTo(res, 0);
         //res[0] = trueForward;
-        res[1] = trueRight*(res[1]<0 ? -1d : 1d);
+        res[0] = goodPath;
         return (res);
     }
 }
