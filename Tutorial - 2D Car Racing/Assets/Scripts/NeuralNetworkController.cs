@@ -422,8 +422,9 @@ public class Network
             Node node = layers[layers.Count - 1].nodes[i];
             if (node.isBiasNode == false) // this check shouldn't be needed
             {
-                node.error = calcActivationFunc_Prime(node.weightedSum) * (output[nonBiasNodeIterator] - node.output - constant);// - constant;
+                node.error = calcActivationFunc_Prime(node.weightedSum) * (output[nonBiasNodeIterator] - node.output);// * constant;// - constant;
 
+                Debug.Log(calcActivationFunc_Prime(node.weightedSum).ToString() + "*(" + output[nonBiasNodeIterator].ToString() + " - " + node.output.ToString() + ")*" + constant.ToString() + (output[nonBiasNodeIterator] < 0 ? " [ - ]" : " [ + ]"));
                 TotalError += node.error;
                 nonBiasNodeIterator += 1;
             }
@@ -530,9 +531,9 @@ public class Network
                     s += ")";
                 }
             }
-            Debug.Log(s);
+            //Debug.Log(s);
         }
-        Debug.Log("\n");
+        //Debug.Log("\n");
     }
 }
 

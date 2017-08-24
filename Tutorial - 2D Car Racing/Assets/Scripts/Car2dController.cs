@@ -40,7 +40,7 @@ public class Car2dController : MonoBehaviour {
     private List<PathTracker> path = new List<PathTracker>();
     private bool pause = false;
     private double runDuration;
-    private double maxDuration = 1;
+    private double maxDuration = .5;
 
     // Use this for initialization
     void Start () {
@@ -75,21 +75,19 @@ public class Car2dController : MonoBehaviour {
 
         PathTracker pt = new PathTracker(network.GetInputs(), network.GetOutputs());
         path.Add(pt);
-
-        /*
+        
         if(runDuration>maxDuration)
         {
             // good path
             pause = true;
             PathTracker p = path[0];
             network.forwardPropogate(p.getInputs());
-            network.backPropogate(new double[] { network.activationFunc.max() }, runDuration);// (runDuration > maxDuration ? maxDuration : (maxDuration - runDuration) / maxDuration));
-            Debug.Log((p.getOutputs()[0] - 1d).ToString() + " (error)");
+            network.backPropogate(new double[] { network.activationFunc.max() }, (runDuration > maxDuration ? maxDuration : (maxDuration - runDuration) / maxDuration)); //(runDuration > maxDuration ? 0.01 : Math.Abs(runDuration - maxDuration) / maxDuration));
+            //Debug.Log((p.getOutputs()[0] - 1d).ToString() + " (error) " + runDuration.ToString());
             path.RemoveAt(0);
             pause = false;
         }
-        */
-
+        
         double[] outputs = network.GetMovementOutputs();
         
 		float driftFactor = driftFactorSticky;
@@ -146,7 +144,8 @@ public class Car2dController : MonoBehaviour {
             {
                 network.forwardPropogate(p.getInputs());
 
-                network.backPropogate(new double[] { network.activationFunc.min() }, runDuration);
+                network.backPropogate(new double[] { network.activationFunc.min() }, (runDuration > maxDuration ? maxDuration : (maxDuration - runDuration) / maxDuration)); //(runDuration > maxDuration ? .01 : Math.Abs(runDuration - maxDuration) / maxDuration));
+                //Debug.Log((p.getOutputs()[0] - 1d).ToString() + " (error) " + runDuration.ToString());
             }
             path.Clear();
             pause = false;
