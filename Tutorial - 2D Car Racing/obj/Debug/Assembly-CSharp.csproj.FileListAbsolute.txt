@@ -29,3 +29,4 @@ D:\Programming Software\Unity\Tutorial - 2D Car Racing - Copy\Tutorial - 2D Car 
 D:\Programming Software\Unity\Tutorial - 2D Car Racing - Copy\Tutorial - 2D Car Racing\obj\Debug\Assembly-CSharp.csprojResolveAssemblyReference.cache
 D:\Programming Software\Unity\Tutorial - 2D Car Racing - Copy\Tutorial - 2D Car Racing\obj\Debug\Assembly-CSharp.dll
 D:\Programming Software\Unity\Tutorial - 2D Car Racing - Copy\Tutorial - 2D Car Racing\obj\Debug\Assembly-CSharp.pdb
+D:\Programming Software\Unity\Tutorial - 2D Car Racing - Copy\Tutorial - 2D Car Racing\obj\Debug\Assembly-CSharp.csproj.CoreCompileInputs.cache

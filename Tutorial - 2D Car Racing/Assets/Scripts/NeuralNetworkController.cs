@@ -346,7 +346,7 @@ public class Network
             {
                 foreach (Connector connector in node.forwardConnectors)
                 {
-                    connector.weight = GetRandomDouble(getrandom, -1d / Math.Sqrt((double)layer.nodes.Count), 1d / Math.Sqrt((double)layer.nodes.Count));//(double)getrandom.Next(1,100)/(double)200;
+                    connector.weight = GetRandomDouble(getrandom, -2d / Math.Sqrt((double)layer.nodes.Count), 2d / Math.Sqrt((double)layer.nodes.Count));//(double)getrandom.Next(1,100)/(double)200;
                 }
             }
         }
@@ -422,13 +422,13 @@ public class Network
             Node node = layers[layers.Count - 1].nodes[i];
             if (node.isBiasNode == false) // this check shouldn't be needed
             {
-                node.error = calcActivationFunc_Prime(node.weightedSum) * (output[nonBiasNodeIterator] - node.output);// * constant;// - constant;
+                node.error = calcActivationFunc_Prime(node.weightedSum) * (output[nonBiasNodeIterator] - node.output) - constant;
 
-                Debug.Log(calcActivationFunc_Prime(node.weightedSum).ToString() + "*(" + output[nonBiasNodeIterator].ToString() + " - " + node.output.ToString() + ")*" + constant.ToString() + (output[nonBiasNodeIterator] < 0 ? " [ - ]" : " [ + ]"));
                 TotalError += node.error;
                 nonBiasNodeIterator += 1;
             }
         }
+        
         // back propogate
         for (int i = layers.Count - 2; i >= 0; i--)
         {
@@ -440,8 +440,11 @@ public class Network
                     sum += con.weight * con.To.error;
                 }
                 node.error = calcActivationFunc_Prime(node.weightedSum) * sum;
+
+                TotalError += node.error;
             }
         }
+        //Debug.Log(TotalError.ToString() + " : run " + constant.ToString());
 
         // update all weights in network using errors
         foreach (Layer layer in layers)
@@ -470,32 +473,6 @@ public class Network
     {
         return (activationFunc.activationFunction_Prime(x));
     }
-    /*
-    public void Test(IDataTest data)
-    {
-        if (layers.Count < 2) return; // If there is only 1 layer (which shouldn't happen), then do nothing.
-
-        for (int j = 0; j < data.inputList.Count; j++)
-        {
-            forwardPropogate(data.inputList[j]);
-
-            // print out results
-            double TotalError = 0d;
-            int nonBiasNodeIterator = 0;
-            for (int i = 0; i < layers[layers.Count - 1].nodes.Count; i++)
-            {
-                Node node = layers[layers.Count - 1].nodes[i];
-                if (node.isBiasNode == false)
-                {
-                    //Console.WriteLine(node.name + " guess " + node.output.ToString() + " : " + data.outputList[j].output[nonBiasNodeIterator].ToString());
-                    TotalError += Math.Pow(node.output - data.outputList[j].output[nonBiasNodeIterator], 2);
-                    nonBiasNodeIterator += 1;
-                }
-            }
-            //Console.WriteLine("Total Error: " + TotalError.ToString());
-        }
-    }
-    */
 
     public double getError(double[] output)
     {

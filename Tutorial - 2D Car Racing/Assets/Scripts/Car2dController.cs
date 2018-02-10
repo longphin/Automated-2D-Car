@@ -31,7 +31,7 @@ public class Car2dController : MonoBehaviour {
     private float r = 10; // distance of vision
     private float angleIncrement = 2 * Mathf.PI / numberOfSights;
 
-    private Vector2 startPosition;
+    private Vector3 startPosition;
     private Quaternion startAngle;
     private Vector2 startVelocity;
 
@@ -41,12 +41,25 @@ public class Car2dController : MonoBehaviour {
     private bool pause = false;
     private double runDuration;
     private double maxDuration = .5;
+    private static readonly System.Random getrandom = new System.Random(250);
+
+    public static int numberActiveCars = 0;
+
+    public GodScript gs;
 
     // Use this for initialization
     void Start () {
+        
+        Vector2 initialrotation = transform.eulerAngles;
+        //initialrotation.x = UnityEngine.Random.Range(0f, 180f);
+        initialrotation.y = UnityEngine.Random.Range(0f, 180f);
+        //transform.eulerAngles = initialrotation;
+
+        numberActiveCars += 1;
+
         runDuration = 0;
         rb = GetComponent<Rigidbody2D>();
-
+        
         // get initial state
         startPosition = transform.position;
         startAngle = transform.rotation;
@@ -63,11 +76,23 @@ public class Car2dController : MonoBehaviour {
         inputSightDistancesToNeuralNetwork();
     }
 
+    private double GetRandomDouble(System.Random rnd, double min, double max)
+    {
+        return (rnd.NextDouble() * (max - min) + min);
+    }
+
+    public void setGodScriptReference(GodScript godscript)
+    {
+        gs = godscript;
+    }
+
 	void Update() {
 
 	}
 	
 	void FixedUpdate () {
+        if (pause == true) return;
+
         runDuration += Time.deltaTime;
         double[] trueOutput = new double[numberOfOutputs];
 
@@ -79,13 +104,12 @@ public class Car2dController : MonoBehaviour {
         if(runDuration>maxDuration)
         {
             // good path
-            pause = true;
             PathTracker p = path[0];
             network.forwardPropogate(p.getInputs());
-            network.backPropogate(new double[] { network.activationFunc.max() }, (runDuration > maxDuration ? maxDuration : (maxDuration - runDuration) / maxDuration)); //(runDuration > maxDuration ? 0.01 : Math.Abs(runDuration - maxDuration) / maxDuration));
+            network.backPropogate(new double[] { network.activationFunc.max() }, runDuration);// (runDuration > maxDuration ? maxDuration : (maxDuration - runDuration) / maxDuration)); //(runDuration > maxDuration ? 0.01 : Math.Abs(runDuration - maxDuration) / maxDuration));
             //Debug.Log((p.getOutputs()[0] - 1d).ToString() + " (error) " + runDuration.ToString());
             path.RemoveAt(0);
-            pause = false;
+            maxDuration = runDuration*0.9;
         }
         
         double[] outputs = network.GetMovementOutputs();
@@ -129,6 +153,9 @@ public class Car2dController : MonoBehaviour {
     {
         if(col.gameObject.layer == LayerMask.NameToLayer("Edges"))
         {
+            pause = true;
+            numberActiveCars -= 1;
+
             double[] trueOutput = new double[numberOfOutputs];
             trueOutput = network.GetOutputs();
 
@@ -136,31 +163,52 @@ public class Car2dController : MonoBehaviour {
             path.Add(pt);
 
             rb.angularVelocity = 0;
-            transform.position = startPosition;
-            transform.rotation = startAngle;
+            //transform.position = startPosition;
+            //transform.rotation = startAngle;
             rb.velocity = startVelocity;
-            pause = true;
             foreach (PathTracker p in path)
             {
                 network.forwardPropogate(p.getInputs());
 
-                network.backPropogate(new double[] { network.activationFunc.min() }, (runDuration > maxDuration ? maxDuration : (maxDuration - runDuration) / maxDuration)); //(runDuration > maxDuration ? .01 : Math.Abs(runDuration - maxDuration) / maxDuration));
-                //Debug.Log((p.getOutputs()[0] - 1d).ToString() + " (error) " + runDuration.ToString());
+                network.backPropogate(new double[] { network.activationFunc.min() }, runDuration);
             }
             path.Clear();
-            pause = false;
 
             runDuration = 0;
 
-            //network.initializeWeightsMinor();
+            Debug.Log("active cars: " + numberActiveCars.ToString());
+            if(numberActiveCars == 0)
+            {
+                gs.startCars();
+            }
         }
+    }
+
+    public void startCar()
+    {
+        numberActiveCars += 1;
+
+        Vector2 initialrotation = transform.eulerAngles;
+        //initialrotation.x = UnityEngine.Random.Range(0f, 180f);
+        initialrotation.y = UnityEngine.Random.Range(0f, 180f);
+        //transform.eulerAngles = initialrotation;
+
+        transform.position = startPosition;
+        transform.rotation = startAngle;
+        rb.velocity = startVelocity;
+
+        pause = false;
+    }
+    public bool carIsActive()
+    {
+        return pause;
     }
 
     private void inputSightDistancesToNeuralNetwork()
     {
         // update neural network
         float carAngle = Mathf.Atan2(transform.right.y, transform.right.x);
-        double[] sightDistances = new double[numberOfSights+otherInputs];
+        double[] sightDistances = new double[numberOfSights*2+otherInputs];
         for (int i = 0; i < numberOfSights; i++)
         {
             float x = transform.position.x + r * Mathf.Cos(carAngle + angleIncrement * i);
@@ -173,19 +221,21 @@ public class Car2dController : MonoBehaviour {
             {
                 Debug.DrawLine(transform.position, hit.point, Color.red);
                 sightDistances[i] = hit.distance;
+                sightDistances[numberOfSights + i-1] = 1;
             }
             else
             {
                 sightDistances[i] = r;
-                Debug.DrawLine(transform.position, sightVec, Color.green);
+                sightDistances[numberOfSights + i-1] = 0;
+                //Debug.DrawLine(transform.position, sightVec, Color.green);
             }
         }
 
-        sightDistances[numberOfSights] = rb.velocity.x;
-        sightDistances[numberOfSights + 1] = rb.velocity.y;
-        sightDistances[numberOfSights + 2] = transform.rotation.x;
-        sightDistances[numberOfSights + 3] = transform.rotation.y;
-        sightDistances[numberOfSights + 4] = rb.angularVelocity;
+        sightDistances[numberOfSights*2] = rb.velocity.x;
+        sightDistances[numberOfSights*2 + 1] = rb.velocity.y;
+        sightDistances[numberOfSights*2 + 2] = transform.rotation.x;
+        sightDistances[numberOfSights*2 + 3] = transform.rotation.y;
+        sightDistances[numberOfSights*2 + 4] = rb.angularVelocity;
 
         // rb.velocity, transform.rotation, rb.angularvelocity
         network.forwardPropogate(sightDistances);
