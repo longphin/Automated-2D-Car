@@ -16,7 +16,9 @@ public class CarController : MonoBehaviour
     private float fValue; // used for custom input smoothing
 
     // sight directions
-    private static Int16 numberOfSights = 180;
+    private static Int16 numberOfSights = 45;
+    private static int TotalNumberOfInputs = 2 * numberOfSights;
+    private static int TotalNumberOfOutputs = 2;
 
     private float r = 10; // distance of vision
     private float angleIncrement = 2 * Mathf.PI / numberOfSights;
@@ -31,6 +33,17 @@ public class CarController : MonoBehaviour
     private bool pause = false;
 
     private NeuralNetwork_new thisNN;
+    private int L = 3; // number of layers
+    private int[] N = new int[] { TotalNumberOfInputs, 45, TotalNumberOfOutputs }; // number of nodes in each layer
+
+    public void setL(int L)
+    {
+        this.L = L;
+    }
+    public void setN(int[] N)
+    {
+        this.N = N;
+    }
 
     // Use this for initialization
     void Start()
@@ -49,8 +62,23 @@ public class CarController : MonoBehaviour
         {
             o.index = i++;
         }
-        
-        inputSightDistancesToNeuralNetwork();
+
+        this.thisNN = new NeuralNetwork_new(L, N);
+        forwardPropogate();
+    }
+
+    public void ResetCar()
+    {
+        transform.position = startPosition;
+        transform.rotation = startAngle;
+        rb.velocity = startVelocity;
+        pause = false;
+        DelayTimer();
+    }
+
+    IEnumerator DelayTimer()
+    {
+        yield return new WaitForSeconds(1);
     }
 
     void Update()
@@ -61,7 +89,9 @@ public class CarController : MonoBehaviour
     void FixedUpdate()
     {
         if (pause == true) return;
-        
+
+        forwardPropogate();
+
         float driftFactor = driftFactorSticky;
         if (RightVelocity().magnitude > maxStickyVelocity)
         {
@@ -90,7 +120,8 @@ public class CarController : MonoBehaviour
         // forward speed into sideway force)
         float tf = Mathf.Lerp(0, torqueForce, rb.velocity.magnitude / 2);
         //float smoothing = CustomInputSmoothing((float)outputs[1], (float)outputs[2]); // [remake] need to re-add smoothing using the Neural Network's output
-        float smoothing = 0.5f; // [remake] temp. see previous comment
+        List<double> outputs = this.thisNN.getOutputs();
+        float smoothing = CustomInputSmoothing((float)outputs[0], (float)outputs[1]);
         rb.angularVelocity = smoothing * tf;// * (outputs[1] < network.activationFunc.cutoff() ? -1f : 1f);//Input.GetAxis("Horizontal") * tf;
 
         //inputSightDistancesToNeuralNetwork(); // [remake] delete
@@ -99,15 +130,14 @@ public class CarController : MonoBehaviour
 
     void OnCollisionEnter2D(Collision2D col)
     {
-        Debug.Log("a");
         if (col.gameObject.layer == LayerMask.NameToLayer("Edges"))
         {
             if (!pause) // don't want to trigger twice
             {
                 pause = true;
-                CarsControllerHelper.NumberOfActiveCars -= 1;
+                rb.angularVelocity = 0;
 
-                Debug.Log("Number of active cars " + CarsControllerHelper.NumberOfActiveCars.ToString());
+                CarsControllerHelper.InactivateCar();
             }
         }
     }
@@ -117,12 +147,14 @@ public class CarController : MonoBehaviour
 
     }
 
-    private void inputSightDistancesToNeuralNetwork()
+    private void forwardPropogate()
     {
+        List<double> sights = new List<double>();
+
         // update neural network
         float carAngle = Mathf.Atan2(transform.right.y, transform.right.x);
-        int otherInputs = 5; // [remake] temporarily added. OtherInputs should not be defined in car controller?
-        double[] sightDistances = new double[numberOfSights * 2 + otherInputs];
+        //int otherInputs = 2; // [remake] temporarily added. OtherInputs should not be defined in car controller?
+        //double[] sightDistances = new double[numberOfSights * 2 + otherInputs];
         for (int i = 0; i < numberOfSights; i++)
         {
             float x = transform.position.x + r * Mathf.Cos(carAngle + angleIncrement * i);
@@ -133,23 +165,36 @@ public class CarController : MonoBehaviour
 
             if (hit.collider != null)
             {
-                Debug.DrawLine(transform.position, hit.point, Color.red);
-                sightDistances[i] = hit.distance;
-                sightDistances[numberOfSights + i - 1] = 1;
+                //Debug.DrawLine(transform.position, hit.point, Color.red);
+                sights.Add(hit.distance); // how far from the wall until hit
+                sights.Add(1); // 1 if there is a wall
+                //sightDistances[i] = hit.distance;
+                //sightDistances[numberOfSights + i - 1] = 1;
             }
             else
             {
-                sightDistances[i] = r;
-                sightDistances[numberOfSights + i - 1] = 0;
+                sights.Add(r);
+                sights.Add(0);
+                //sightDistances[i] = r;
+                //sightDistances[numberOfSights + i - 1] = 0;
             }
         }
 
-        sightDistances[numberOfSights * 2] = rb.velocity.x;
-        sightDistances[numberOfSights * 2 + 1] = rb.velocity.y;
-        sightDistances[numberOfSights * 2 + 2] = transform.rotation.x;
-        sightDistances[numberOfSights * 2 + 3] = transform.rotation.y;
-        sightDistances[numberOfSights * 2 + 4] = rb.angularVelocity;
-        
+        this.thisNN.forwardPropogate(new Layer_new(sights));
+        /*
+        sights.Add(rb.velocity.x);
+        sights.Add(rb.velocity.y);
+        sights.Add(transform.rotation.x);
+        sights.Add(transform.rotation.y);
+        sights.Add(rb.angularVelocity);
+        */
+
+        //sightDistances[numberOfSights * 2] = rb.velocity.x;
+        //sightDistances[numberOfSights * 2 + 1] = rb.velocity.y;
+        //sightDistances[numberOfSights * 2 + 2] = transform.rotation.x;
+        //sightDistances[numberOfSights * 2 + 3] = transform.rotation.y;
+        //sightDistances[numberOfSights * 2 + 4] = rb.angularVelocity;
+
         //network.forwardPropogate(sightDistances); // [remake]
     }
     // Since GetAxis() is a built in Unity function that only works when key is held down, it cannot be used for script.
