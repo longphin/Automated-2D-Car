@@ -7,27 +7,18 @@ public static class Utils
 {
     private static System.Random randomGenerator = new System.Random(1991);
 
-    public static List<double> ArrayMultiplication(List<double> x, List<double> y)
+    public static double[] ArrayMultiplication(double[] x, double[] y)
     {
-        if (x.Count != y.Count) throw new InvalidOperationException("Cannot multiply arrays of different sizes");
+        if(x.Length != y.Length) throw new InvalidOperationException("Cannot multiply arrays of different sizes");
 
-        List<double> res = new List<double>();
-        for(int i=0; i<x.Count; i++)
+        double[] res = new double[x.Length];
+
+        for (int i = 0; i < x.Length; i++)
         {
-            res.Add(x[i] * y[i]);
+            res[i] = x[i] * y[i];
         }
 
         return (res);
-    }
-
-    public static List<double> AddConstantToArray(List<double> x, double c)
-    {
-        for(int i=0; i<x.Count; i++)
-        {
-            x[i] = x[i] + c;
-        }
-
-        return (x);
     }
 
     public static double Max(double x1, double x2)
@@ -41,16 +32,18 @@ public static class Utils
         return (randomGenerator.NextDouble());
     }
 
-    public static List<double> MatrixTimesVector(List<List<double>> matrix, List<double> vec)
+    public static double[] MatrixTimesVector(double[,] matrix, double[] vec)
     {
-        List<double> res = new List<double>();
+        double[] res = new double[matrix.GetLength(0)];
 
-        foreach(List<double> row in matrix)
+        for(int i=0; i<matrix.GetLength(0); i++)
         {
-            for(int i = 0; i<row.Count; i++)
+            double element = 0;
+            for(int j=0; j<matrix.GetLength(1); j++)
             {
-                res.Add(row[i] * vec[i]);
+                element += matrix[i,j]*vec[j];
             }
+            res[i] = element;
         }
 
         return (res);
@@ -59,18 +52,18 @@ public static class Utils
 
 public interface ActivationFunction
 {
-    List<double> activate(List<double> x);
+    double[] activate(double[] x);
 }
 
 public class AF_Relu : ActivationFunction
 {
-    public List<double> activate(List<double> x)
+    public double[] activate(double[] x)
     {
-        List<double> res = new List<double>();
+        double[] res = new double[x.Length];
 
-        for(int i=0; i<x.Count; i++)
+        for(int i=0; i<x.Length; i++)
         {
-            res.Add(Utils.Max(0d, x[i]));
+            res[i] = Utils.Max(0d, x[i]);
         }
 
         return (res);
@@ -79,16 +72,15 @@ public class AF_Relu : ActivationFunction
 
 public class AF_Tanh : ActivationFunction
 {
-    public List<double> activate(List<double> x)
+    public double[] activate(double[] x)
     {
-        List<double> res = new List<double>();
+        double[] res = new double[x.Length];
 
-        for (int i = 0; i < x.Count; i++)
+        for (int i = 0; i < x.Length; i++)
         {
-            //res.Add(Utils.Max(0d, x[i]));
             var ex = Math.Exp(2 * x[i]);
             if ((ex + 1) == 0) throw new DivideByZeroException("Sigmoid cannot divide by 0.");
-            res.Add((ex - 1) / (ex + 1));
+            res[i] = (ex - 1) / (ex + 1);
         }
 
         return (res);
@@ -98,21 +90,24 @@ public class AF_Tanh : ActivationFunction
 // Layers
 public class Layer_new
 {
-    public List<List<double>> weightMatrix = new List<List<double>>();
+    public double[,] weightMatrix;
     public double bias = 0d; // [TODO] change to a vector of length N[i]
     private ActivationFunction af = new AF_Relu();
-    private List<double> z = new List<double>();
-    private List<double> a = new List<double>();
+    private double[] z;
+    private double[] a;
     
     // Constructor for non-input layers.
-    public Layer_new(List<List<double>> weights, double bias)
+    public Layer_new(double[,] weights, double bias)
     {
         this.weightMatrix = weights;
         this.bias = bias;
+
+        this.z = new double[weights.GetLength(0)];
+        this.a = new double[weights.GetLength(0)];
     }
 
     // Constructor for input layer only.
-    public Layer_new(List<double> a)
+    public Layer_new(double[] a)
     {
         this.a = a;
     }
@@ -123,14 +118,9 @@ public class Layer_new
     }
 
     // [TODO] When doing forward propogation, use layer[i].calculateFit(layer[i-1].getA())
-    public void calculateFit(List<double> a)
+    public void calculateFit(double[] a)
     {
         this.z = Utils.MatrixTimesVector(weightMatrix, a); // [TODO] add a bias vector
-        /*
-        this.z = Utils.AddConstantToArray(
-                    Utils.ArrayMultiplication(weights, a), bias
-                );
-        */
     }
 
     public void calculateAF()
@@ -138,12 +128,12 @@ public class Layer_new
         this.a = this.af.activate(this.z);
     }
 
-    public List<double> getA()
+    public double[] getA()
     {
         return (this.a);
     }
 
-    public void forwardPropogate(List<double> prevLayera)
+    public void forwardPropogate(double[] prevLayera)
     {
         calculateFit(prevLayera);
         calculateAF();
@@ -152,7 +142,7 @@ public class Layer_new
 
 // Neural network remake
 // [TODO] need to finish
-public class NeuralNetwork_new : MonoBehaviour {
+public class NeuralNetwork_new{
     List<Layer_new> layers = new List<Layer_new>();
 
     int L;// = 3; // number of layers
@@ -173,33 +163,32 @@ public class NeuralNetwork_new : MonoBehaviour {
 
     private void initializeLayers()
     {
-        layers.Add(new Layer_new(new List<double> { 1.0 })); // input layer
+        layers.Add(new Layer_new(new double[] { 1.0 })); // input layer
         for(int i=1; i<L; i++)
         {
-            List<List<double>> weightMatrix = new List<List<double>>();
-            for(int j=0; j<N[i-1]; j++)
+            double[,] weightMatrix = new double[N[i], N[i-1]]; // matrix of thislayer.nodes x prevlayer.nodes
+            for(int j=0; j<N[i]; j++)
             {
-                List<double> row = new List<double>();
-                for(int k=0; k<N[i]; k++)
+                double rowTotal = 0;
+                for(int k=0; k<N[i-1]; k++)
                 {
-                    row.Add(Utils.GetRandomDbl());
+                    double randWeight = Utils.GetRandomDbl();
+                    weightMatrix[j,k] = randWeight;
+                    rowTotal += randWeight;
                 }
-                weightMatrix.Add(row);
+                // normalize the row so the total weight = 1
+                for(int k=0; k<N[i-1]; k++)
+                {
+                    weightMatrix[j, k] = weightMatrix[j, k] / rowTotal;
+                }
             }
             
-            Layer_new newLayer = new Layer_new(weightMatrix, 1.0);
+            Layer_new newLayer = new Layer_new(weightMatrix, 1.0); // output layer
             if (i == L - 1) newLayer.setAF(new AF_Tanh());
             layers.Add(newLayer); // hidden layer
         }
         // output layer
     }
-
-    // [TODO] add forward propogation
-
-	// Update is called once per frame
-	void Update () {
-		
-	}
 
     public void forwardPropogate(Layer_new input)
     {
@@ -220,12 +209,7 @@ public class NeuralNetwork_new : MonoBehaviour {
         layers[0] = input;
     }
 
-    public void printOutputs()
-    {
-        Debug.Log(layers[layers.Count - 1].getA()[0].ToString() + ", " + layers[layers.Count - 1].getA()[1].ToString());
-    }
-
-    public List<double> getOutputs()
+    public double[] getOutputs()
     {
         return (layers[layers.Count - 1].getA());
     }

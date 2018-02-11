@@ -285,6 +285,7 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Assets\CheckpointTrigger.cs" />
     <Compile Include="Assets\Scripts\BoxToEdgeIndicator.cs" />
     <Compile Include="Assets\Scripts\CameraFollow.cs" />
     <Compile Include="Assets\Scripts\Car2dController.cs" />

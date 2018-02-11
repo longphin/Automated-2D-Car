@@ -12,12 +12,13 @@ public class CarController : MonoBehaviour
     float maxStickyVelocity = 2.5f;
     
     public List<SightObjects> sightList = new List<SightObjects>();
+    private GameObject Controller;
 
     private float fValue; // used for custom input smoothing
 
     // sight directions
     private static Int16 numberOfSights = 45;
-    private static int TotalNumberOfInputs = 2 * numberOfSights;
+    private static int TotalNumberOfInputs = 2 * numberOfSights + 2;
     private static int TotalNumberOfOutputs = 2;
 
     private float r = 10; // distance of vision
@@ -36,6 +37,24 @@ public class CarController : MonoBehaviour
     private int L = 3; // number of layers
     private int[] N = new int[] { TotalNumberOfInputs, 45, TotalNumberOfOutputs }; // number of nodes in each layer
 
+    private int lastCheckpoint = -1;
+
+    //private BoxCollider2D collider;
+    //private GameObject dummy;
+
+    public void setCheckpoint(int newCheckpoint)
+    {
+        if (newCheckpoint > lastCheckpoint)
+        {
+            lastCheckpoint = newCheckpoint;
+        }
+    }
+
+    public void setController(GameObject o)
+    {
+        this.Controller = o;
+    }
+
     public void setL(int L)
     {
         this.L = L;
@@ -49,8 +68,9 @@ public class CarController : MonoBehaviour
     void Start()
     {
         Vector2 initialrotation = transform.eulerAngles;
-        
+
         rb = GetComponent<Rigidbody2D>();
+        //collider = GetComponent<BoxCollider2D>();
 
         // get initial state
         startPosition = transform.position;
@@ -72,13 +92,8 @@ public class CarController : MonoBehaviour
         transform.position = startPosition;
         transform.rotation = startAngle;
         rb.velocity = startVelocity;
+        lastCheckpoint = -1;
         pause = false;
-        DelayTimer();
-    }
-
-    IEnumerator DelayTimer()
-    {
-        yield return new WaitForSeconds(1);
     }
 
     void Update()
@@ -120,7 +135,7 @@ public class CarController : MonoBehaviour
         // forward speed into sideway force)
         float tf = Mathf.Lerp(0, torqueForce, rb.velocity.magnitude / 2);
         //float smoothing = CustomInputSmoothing((float)outputs[1], (float)outputs[2]); // [remake] need to re-add smoothing using the Neural Network's output
-        List<double> outputs = this.thisNN.getOutputs();
+        double[] outputs = this.thisNN.getOutputs();
         float smoothing = CustomInputSmoothing((float)outputs[0], (float)outputs[1]);
         rb.angularVelocity = smoothing * tf;// * (outputs[1] < network.activationFunc.cutoff() ? -1f : 1f);//Input.GetAxis("Horizontal") * tf;
 
@@ -149,7 +164,7 @@ public class CarController : MonoBehaviour
 
     private void forwardPropogate()
     {
-        List<double> sights = new List<double>();
+        double[] sights = new double[TotalNumberOfInputs];
 
         // update neural network
         float carAngle = Mathf.Atan2(transform.right.y, transform.right.x);
@@ -162,25 +177,29 @@ public class CarController : MonoBehaviour
 
             Vector2 sightVec = new Vector2(x, y);
             var hit = Physics2D.Linecast(transform.position, sightVec, 1 << LayerMask.NameToLayer("Edges"));
-
+            
             if (hit.collider != null)
             {
                 //Debug.DrawLine(transform.position, hit.point, Color.red);
-                sights.Add(hit.distance); // how far from the wall until hit
-                sights.Add(1); // 1 if there is a wall
+                sights[i] = hit.distance/r; // how far from the wall until hit
+                sights[numberOfSights + i - 1] = 1; // 1 if there is a wall
                 //sightDistances[i] = hit.distance;
                 //sightDistances[numberOfSights + i - 1] = 1;
             }
             else
             {
-                sights.Add(r);
-                sights.Add(0);
+                sights[i] = r/r;
+                sights[numberOfSights + i - 1] = 0;
                 //sightDistances[i] = r;
                 //sightDistances[numberOfSights + i - 1] = 0;
             }
         }
 
         this.thisNN.forwardPropogate(new Layer_new(sights));
+        
+        //var a = CarsControllerHelper.innerPath.Distance(collider);
+        //dummy.transform.position = a.pointA;
+
         /*
         sights.Add(rb.velocity.x);
         sights.Add(rb.velocity.y);
