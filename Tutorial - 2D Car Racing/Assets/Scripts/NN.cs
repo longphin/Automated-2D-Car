@@ -32,6 +32,11 @@ public static class Utils
         return (randomGenerator.NextDouble());
     }
 
+    public static int GetRandomInt()
+    {
+        return (randomGenerator.Next());
+    }
+
     public static double[] MatrixTimesVector(double[,] matrix, double[] vec)
     {
         double[] res = new double[matrix.GetLength(0)];
@@ -44,6 +49,20 @@ public static class Utils
                 element += matrix[i,j]*vec[j];
             }
             res[i] = element;
+        }
+
+        return (res);
+    }
+
+    public static double[] AddVectors(double[] x, double[] y)
+    {
+        if (x.Length != y.Length) throw new InvalidOperationException("Cannot add arrays of different sizes");
+
+        double[] res = new double[x.Length];
+
+        for (int i = 0; i < x.Length; i++)
+        {
+            res[i] = x[i] + y[i];
         }
 
         return (res);
@@ -91,13 +110,13 @@ public class AF_Tanh : ActivationFunction
 public class Layer_new
 {
     public double[,] weightMatrix;
-    public double bias = 0d; // [TODO] change to a vector of length N[i]
+    public double[] bias;
     private ActivationFunction af = new AF_Relu();
     private double[] z;
     private double[] a;
     
     // Constructor for non-input layers.
-    public Layer_new(double[,] weights, double bias)
+    public Layer_new(double[,] weights, double[] bias)
     {
         this.weightMatrix = weights;
         this.bias = bias;
@@ -116,11 +135,10 @@ public class Layer_new
     {
         this.af = af;
     }
-
-    // [TODO] When doing forward propogation, use layer[i].calculateFit(layer[i-1].getA())
+    
     public void calculateFit(double[] a)
     {
-        this.z = Utils.MatrixTimesVector(weightMatrix, a); // [TODO] add a bias vector
+        this.z = Utils.AddVectors(Utils.MatrixTimesVector(weightMatrix, a), bias);
     }
 
     public void calculateAF()
@@ -141,12 +159,11 @@ public class Layer_new
 }
 
 // Neural network remake
-// [TODO] need to finish
 public class NeuralNetwork_new{
     List<Layer_new> layers = new List<Layer_new>();
 
-    int L;// = 3; // number of layers
-    int[] N;// = new int[] { 45, 45, 2 }; // number of nodes per layer [TODO] make it possible for layers for have different n. This should have length L
+    int L; // number of layers
+    int[] N; // number of nodes per layer
 
 	// Use this for initialization
 	void Start () {
@@ -161,6 +178,90 @@ public class NeuralNetwork_new{
         initializeLayers();
     }
 
+    // constructor for combining 2 neural networks
+    public NeuralNetwork_new(NeuralNetwork_new NN1, NeuralNetwork_new NN2)
+    {
+        int[] nodes1 = NN1.getN();
+        int[] nodes2 = NN2.getN();
+        if (NN1.getL() != NN2.getL() || nodes1.Length != nodes2.Length) throw new ArgumentOutOfRangeException("Cannot combine neural networks of different sizes.");
+        for(int i = 0; i<nodes1.Length; i++)
+        {
+            if (nodes1[i] != nodes2[i]) throw new ArgumentOutOfRangeException("Cannot combine neural networks of different layer sizes.");
+        }
+
+        this.L = NN1.getL();
+        this.N = NN1.getN();
+
+        initializeChildLayers(NN1, NN2);
+    }
+
+    public int getL()
+    {
+        return (L);
+    }
+
+    public int[] getN()
+    {
+        return (N);
+    }
+
+    public double[,] getWeightMatrix(int layer)
+    {
+        return (layers[layer].weightMatrix);
+    }
+    public double[] getBias(int layer)
+    {
+        return (layers[layer].bias);
+    }
+
+    private void initializeChildLayers(NeuralNetwork_new NN1, NeuralNetwork_new NN2)
+    {
+        layers.Add(new Layer_new(new double[] { 1.0 })); // input layer
+        for (int i = 1; i < L; i++)
+        {
+            double[,] weightMatrix = new double[N[i], N[i - 1]]; // matrix of thislayer.nodes x prevlayer.nodes
+            double[,] weightMatrix1 = NN1.getWeightMatrix(i);
+            double[,] weightMatrix2 = NN2.getWeightMatrix(i);
+
+            for (int j = 0; j < N[i]; j++)
+            {
+                for (int k = 0; k < N[i - 1]; k++)
+                {
+                    //double randWeight = Utils.GetRandomDbl();
+                    if (Utils.GetRandomDbl() < 0.5d) // Get weight from parent 1
+                    {
+                        weightMatrix[j, k] = weightMatrix1[j, k];
+                    }
+                    else // else, get weight from parent 2
+                    {
+                        weightMatrix[j, k] = weightMatrix2[j, k];
+                    }
+                }
+            }
+
+            // bias vector
+            double[] bias = new double[N[i]];
+            double[] bias1 = NN1.getBias(i);
+            double[] bias2 = NN2.getBias(i);
+            for (int j = 0; j < N[i]; j++)
+            {
+                if (Utils.GetRandomDbl() < 0.5d) // Get weight from parent 1
+                {
+                    bias[j] = bias1[j];
+                }
+                else
+                {
+                    bias[j] = bias2[j];
+                }
+            }
+
+            Layer_new newLayer = new Layer_new(weightMatrix, bias); // output layer
+            if (i == L - 1) newLayer.setAF(new AF_Tanh());
+            layers.Add(newLayer); // hidden layer
+        }
+        // output layer
+    }
+
     private void initializeLayers()
     {
         layers.Add(new Layer_new(new double[] { 1.0 })); // input layer
@@ -169,21 +270,30 @@ public class NeuralNetwork_new{
             double[,] weightMatrix = new double[N[i], N[i-1]]; // matrix of thislayer.nodes x prevlayer.nodes
             for(int j=0; j<N[i]; j++)
             {
-                double rowTotal = 0;
+                //double rowTotal = 0;
                 for(int k=0; k<N[i-1]; k++)
                 {
                     double randWeight = Utils.GetRandomDbl();
                     weightMatrix[j,k] = randWeight;
-                    rowTotal += randWeight;
+                    //rowTotal += randWeight;
                 }
                 // normalize the row so the total weight = 1
+                /*
                 for(int k=0; k<N[i-1]; k++)
                 {
                     weightMatrix[j, k] = weightMatrix[j, k] / rowTotal;
                 }
+                */
+            }
+
+            // bias vector
+            double[] bias = new double[N[i]];
+            for(int j=0; j<N[i]; j++)
+            {
+                bias[j] = Utils.GetRandomDbl();
             }
             
-            Layer_new newLayer = new Layer_new(weightMatrix, 1.0); // output layer
+            Layer_new newLayer = new Layer_new(weightMatrix, bias); // output layer
             if (i == L - 1) newLayer.setAF(new AF_Tanh());
             layers.Add(newLayer); // hidden layer
         }

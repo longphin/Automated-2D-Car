@@ -18,7 +18,7 @@ public class CarController : MonoBehaviour
 
     // sight directions
     private static Int16 numberOfSights = 45;
-    private static int TotalNumberOfInputs = 2 * numberOfSights + 2;
+    private static int TotalNumberOfInputs = numberOfSights;//2 * numberOfSights + 2;
     private static int TotalNumberOfOutputs = 2;
 
     private float r = 10; // distance of vision
@@ -38,16 +38,31 @@ public class CarController : MonoBehaviour
     private int[] N = new int[] { TotalNumberOfInputs, 45, TotalNumberOfOutputs }; // number of nodes in each layer
 
     private int lastCheckpoint = -1;
+    private Vector2 deadPosition; // When the car hits a wall, it will be "dead" at that position.
+
+    private int laps = 0; // [TODO] for each lap, increment this
 
     //private BoxCollider2D collider;
     //private GameObject dummy;
 
     public void setCheckpoint(int newCheckpoint)
     {
-        if (newCheckpoint > lastCheckpoint)
+        if (newCheckpoint == lastCheckpoint+1) // make sure the checkpoint was the next in line. This is to prevent going backwards at the start giving a big lead.
         {
             lastCheckpoint = newCheckpoint;
         }
+    }
+
+    public int getCheckpoint()
+    {
+        return (lastCheckpoint);
+    }
+
+    public float distanceToNextCheckpoint()
+    {
+        if (deadPosition == null) throw new ArgumentNullException("dead position is null");
+
+        return (CarsControllerHelper.distanceToNextCheckpoint(deadPosition, lastCheckpoint));
     }
 
     public void setController(GameObject o)
@@ -87,8 +102,15 @@ public class CarController : MonoBehaviour
         forwardPropogate();
     }
 
-    public void ResetCar()
+    public void setNeuralNetwork(NeuralNetwork_new newNN)
     {
+        this.thisNN = newNN;
+    }
+
+    public void ResetCar(NeuralNetwork_new NN)
+    {
+        this.GetComponent<SpriteRenderer>().color = Color.white;
+        this.thisNN = NN;
         transform.position = startPosition;
         transform.rotation = startAngle;
         rb.velocity = startVelocity;
@@ -151,6 +173,7 @@ public class CarController : MonoBehaviour
             {
                 pause = true;
                 rb.angularVelocity = 0;
+                deadPosition = transform.position;
 
                 CarsControllerHelper.InactivateCar();
             }
@@ -168,8 +191,9 @@ public class CarController : MonoBehaviour
 
         // update neural network
         float carAngle = Mathf.Atan2(transform.right.y, transform.right.x);
-        //int otherInputs = 2; // [remake] temporarily added. OtherInputs should not be defined in car controller?
-        //double[] sightDistances = new double[numberOfSights * 2 + otherInputs];
+        //double totalSightDistances = 0;
+        double sightMin = r + 1; // unreachable max value
+        double sightMax = -1; // unreachable min value
         for (int i = 0; i < numberOfSights; i++)
         {
             float x = transform.position.x + r * Mathf.Cos(carAngle + angleIncrement * i);
@@ -181,32 +205,35 @@ public class CarController : MonoBehaviour
             if (hit.collider != null)
             {
                 //Debug.DrawLine(transform.position, hit.point, Color.red);
-                sights[i] = hit.distance/r; // how far from the wall until hit
-                sights[numberOfSights + i - 1] = 1; // 1 if there is a wall
-                //sightDistances[i] = hit.distance;
-                //sightDistances[numberOfSights + i - 1] = 1;
+                //totalSightDistances += 
+                    sights[i] = hit.distance; // how far from the wall until hit
+                if (sights[i] > sightMax) sightMax = sights[i];
+                if (sights[i] < sightMin) sightMin = sights[i];
+                //sights[numberOfSights + i - 1] = 1; // 1 if there is a wall
             }
             else
             {
-                sights[i] = r/r;
-                sights[numberOfSights + i - 1] = 0;
-                //sightDistances[i] = r;
-                //sightDistances[numberOfSights + i - 1] = 0;
+                //totalSightDistances += 
+                    sights[i] = r;
+                if (sights[i] > sightMax) sightMax = sights[i];
+                if (sights[i] < sightMin) sightMin = sights[i];
+                //sights[numberOfSights + i - 1] = 0;
             }
         }
 
-        this.thisNN.forwardPropogate(new Layer_new(sights));
-        
+        // normalize the distances
+        //double averageSight = totalSightDistances / numberOfSights;
+        if (sightMax - sightMin == 0) throw new DivideByZeroException("Somehow sight max = sight min.");
+
+        for(int i=0; i<numberOfSights; i++)
+        {
+            sights[i] = (sights[i] - sightMin) / (sightMax - sightMin) *2-2;// * 6 - 3; // normalize sight range to [-1, 1]
+            //sights[i] = (sights[i] - averageSight) / totalSightDistances * 3;
+            //sights[i] = Utils.GetRandomDbl()*6-3; // [TODO] temporary. Delete this.
+        }
+
         //var a = CarsControllerHelper.innerPath.Distance(collider);
         //dummy.transform.position = a.pointA;
-
-        /*
-        sights.Add(rb.velocity.x);
-        sights.Add(rb.velocity.y);
-        sights.Add(transform.rotation.x);
-        sights.Add(transform.rotation.y);
-        sights.Add(rb.angularVelocity);
-        */
 
         //sightDistances[numberOfSights * 2] = rb.velocity.x;
         //sightDistances[numberOfSights * 2 + 1] = rb.velocity.y;
@@ -214,7 +241,7 @@ public class CarController : MonoBehaviour
         //sightDistances[numberOfSights * 2 + 3] = transform.rotation.y;
         //sightDistances[numberOfSights * 2 + 4] = rb.angularVelocity;
 
-        //network.forwardPropogate(sightDistances); // [remake]
+        this.thisNN.forwardPropogate(new Layer_new(sights));
     }
     // Since GetAxis() is a built in Unity function that only works when key is held down, it cannot be used for script.
     // A customInputSmoothing is used to do the same thing, but can be used outside of input.
