@@ -37,6 +37,12 @@ public static class Utils
         return (randomGenerator.Next());
     }
 
+    // return random int between [a, b)
+    public static int GetRandomInt(int a, int b)
+    {
+        return (randomGenerator.Next(a, b));
+    }
+
     public static double[] MatrixTimesVector(double[,] matrix, double[] vec)
     {
         double[] res = new double[matrix.GetLength(0)];
@@ -179,7 +185,7 @@ public class NeuralNetwork_new{
     }
 
     // constructor for combining 2 neural networks
-    public NeuralNetwork_new(NeuralNetwork_new NN1, NeuralNetwork_new NN2)
+    public NeuralNetwork_new(NeuralNetwork_new NN1, NeuralNetwork_new NN2, float mutationRate, int checkpointsDone1, int checkpointsDone2)
     {
         int[] nodes1 = NN1.getN();
         int[] nodes2 = NN2.getN();
@@ -192,7 +198,43 @@ public class NeuralNetwork_new{
         this.L = NN1.getL();
         this.N = NN1.getN();
 
-        initializeChildLayers(NN1, NN2);
+        initializeChildLayers(NN1, NN2, mutationRate, checkpointsDone1, checkpointsDone2);
+    }
+
+    // clone constructor
+    public NeuralNetwork_new(NeuralNetwork_new NN)
+    {
+        copyLayers(NN);
+    }
+
+    private void copyLayers(NeuralNetwork_new NN)
+    {
+        layers.Add(new Layer_new(new double[] { 1.0 })); // input layer
+        for (int i = 1; i < L; i++)
+        {
+            double[,] weightMatrix = new double[N[i], N[i - 1]]; // matrix of thislayer.nodes x prevlayer.nodes
+            double[,] weightMatrix1 = NN.getWeightMatrix(i);
+
+            for (int j = 0; j < N[i]; j++)
+            {
+                for (int k = 0; k < N[i - 1]; k++)
+                {
+                    weightMatrix[j, k] = weightMatrix1[j, k];
+                }
+            }
+
+            // bias vector
+            double[] bias = new double[N[i]];
+            double[] bias1 = NN.getBias(i);
+            for (int j = 0; j < N[i]; j++)
+            {
+                bias[j] = bias1[j];
+            }
+
+            Layer_new newLayer = new Layer_new(weightMatrix, bias); // output layer
+            if (i == L - 1) newLayer.setAF(new AF_Tanh());
+            layers.Add(newLayer); // hidden layer
+        }
     }
 
     public int getL()
@@ -214,7 +256,7 @@ public class NeuralNetwork_new{
         return (layers[layer].bias);
     }
 
-    private void initializeChildLayers(NeuralNetwork_new NN1, NeuralNetwork_new NN2)
+    private void initializeChildLayers(NeuralNetwork_new NN1, NeuralNetwork_new NN2, float mutationRate, int checkpointsDone1, int checkpointsDone2)
     {
         layers.Add(new Layer_new(new double[] { 1.0 })); // input layer
         for (int i = 1; i < L; i++)
@@ -227,14 +269,23 @@ public class NeuralNetwork_new{
             {
                 for (int k = 0; k < N[i - 1]; k++)
                 {
-                    //double randWeight = Utils.GetRandomDbl();
-                    if (Utils.GetRandomDbl() < 0.5d) // Get weight from parent 1
+                    if (Utils.GetRandomDbl() < mutationRate) // mutate weight
                     {
-                        weightMatrix[j, k] = weightMatrix1[j, k];
+                        weightMatrix[j, k] = Utils.GetRandomDbl()*2-1; // make between [-1,1]
                     }
-                    else // else, get weight from parent 2
+                    else
                     {
-                        weightMatrix[j, k] = weightMatrix2[j, k];
+                        //weightMatrix[j, k] = (weightMatrix1[j, k] + weightMatrix2[j, k]) / 2d; // take the average
+                        
+                        if (Utils.GetRandomDbl() < (0.5d + 0.1d*(checkpointsDone1-checkpointsDone2))) // Get weight from parent 1
+                        {
+                            weightMatrix[j, k] = weightMatrix1[j, k];
+                        }
+                        else // else, get weight from parent 2
+                        {
+                            weightMatrix[j, k] = weightMatrix2[j, k];
+                        }
+                        
                     }
                 }
             }
@@ -245,13 +296,23 @@ public class NeuralNetwork_new{
             double[] bias2 = NN2.getBias(i);
             for (int j = 0; j < N[i]; j++)
             {
-                if (Utils.GetRandomDbl() < 0.5d) // Get weight from parent 1
+                if (Utils.GetRandomDbl() < mutationRate) // mutation
                 {
-                    bias[j] = bias1[j];
+                    bias[j] = Utils.GetRandomDbl()*20-10; // make between [-10,10]
                 }
                 else
                 {
-                    bias[j] = bias2[j];
+                    //bias[j] = (bias1[j] + bias2[j]) / 2d; // take the average
+                    
+                    if (Utils.GetRandomDbl() < (0.5d + 0.1d * (checkpointsDone1 - checkpointsDone2))) // Get bias from parent 1
+                    {
+                        bias[j] = bias1[j];
+                    }
+                    else // Get bias from parent 2
+                    {
+                        bias[j] = bias2[j];
+                    }
+                    
                 }
             }
 

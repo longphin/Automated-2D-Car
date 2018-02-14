@@ -18,8 +18,8 @@ public class CarController : MonoBehaviour
 
     // sight directions
     private static Int16 numberOfSights = 45;
-    private static int TotalNumberOfInputs = numberOfSights;//2 * numberOfSights + 2;
-    private static int TotalNumberOfOutputs = 2;
+    private static int TotalNumberOfInputs = 2 * numberOfSights + 2;
+    private static int TotalNumberOfOutputs = 4;
 
     private float r = 10; // distance of vision
     private float angleIncrement = 2 * Mathf.PI / numberOfSights;
@@ -35,12 +35,15 @@ public class CarController : MonoBehaviour
 
     private NeuralNetwork_new thisNN;
     private int L = 3; // number of layers
-    private int[] N = new int[] { TotalNumberOfInputs, 45, TotalNumberOfOutputs }; // number of nodes in each layer
+    private int[] N = new int[] { TotalNumberOfInputs, TotalNumberOfInputs, TotalNumberOfOutputs }; // number of nodes in each layer
 
     private int lastCheckpoint = -1;
     private Vector2 deadPosition; // When the car hits a wall, it will be "dead" at that position.
 
     private int laps = 0; // [TODO] for each lap, increment this
+
+    private float generationTimer = 0f; // this is how long the current generation has been running
+    private float generationMaxTimer = 20f; // this is how long the current generation has to run
 
     //private BoxCollider2D collider;
     //private GameObject dummy;
@@ -56,6 +59,11 @@ public class CarController : MonoBehaviour
     public int getCheckpoint()
     {
         return (lastCheckpoint);
+    }
+
+    public int getScore()
+    {
+        return (lastCheckpoint + laps*CarsControllerHelper.checkpoints.Count);
     }
 
     public float distanceToNextCheckpoint()
@@ -109,18 +117,26 @@ public class CarController : MonoBehaviour
 
     public void ResetCar(NeuralNetwork_new NN)
     {
-        this.GetComponent<SpriteRenderer>().color = Color.white;
         this.thisNN = NN;
         transform.position = startPosition;
         transform.rotation = startAngle;
         rb.velocity = startVelocity;
         lastCheckpoint = -1;
+        generationTimer = 0f;
+        GetComponent<SpriteRenderer>().color = new Color(1f, 1f, 1f, 1f);
         pause = false;
     }
 
     void Update()
     {
-
+        if (!pause && generationTimer >= generationMaxTimer)
+        { 
+            setCarAsDead();
+        }
+        else
+        {
+            generationTimer += Time.deltaTime;
+        }
     }
 
     void FixedUpdate()
@@ -137,10 +153,12 @@ public class CarController : MonoBehaviour
 
         rb.velocity = ForwardVelocity() + RightVelocity() * driftFactor;
 
+        /*
         if (Input.GetButton("Accelerate") || (useAI == true))
         {
             rb.AddForce(transform.up * speedForce);
         }
+        */
         /*
 		if(Input.GetButton("Brakes") || (useAI == true && outputs[0]<0)) {
 			rb.AddForce( transform.up * -speedForce/2f );
@@ -159,8 +177,10 @@ public class CarController : MonoBehaviour
         //float smoothing = CustomInputSmoothing((float)outputs[1], (float)outputs[2]); // [remake] need to re-add smoothing using the Neural Network's output
         double[] outputs = this.thisNN.getOutputs();
         float smoothing = CustomInputSmoothing((float)outputs[0], (float)outputs[1]);
+        rb.AddForce(transform.up * (float)(outputs[2] - outputs[3]) * speedForce); // [TODO] is outputs[2] never negative? Cars do not seem to decelerate
         rb.angularVelocity = smoothing * tf;// * (outputs[1] < network.activationFunc.cutoff() ? -1f : 1f);//Input.GetAxis("Horizontal") * tf;
 
+        //Debug.Log(smoothing.ToString() + " " + (outputs[2] - outputs[3]).ToString());
         //inputSightDistancesToNeuralNetwork(); // [remake] delete
         //network.printNN(); // [remake] delete
     }
@@ -171,13 +191,19 @@ public class CarController : MonoBehaviour
         {
             if (!pause) // don't want to trigger twice
             {
-                pause = true;
-                rb.angularVelocity = 0;
-                deadPosition = transform.position;
-
-                CarsControllerHelper.InactivateCar();
+                setCarAsDead();
             }
         }
+    }
+
+    // If the car collides with a wall or if it has been running for too long, then it will be marked as dead.
+    private void setCarAsDead()
+    {
+        pause = true;
+        rb.angularVelocity = 0;
+        deadPosition = transform.position;
+        
+        CarsControllerHelper.InactivateCar();
     }
 
     public void startCar()
@@ -206,18 +232,18 @@ public class CarController : MonoBehaviour
             {
                 //Debug.DrawLine(transform.position, hit.point, Color.red);
                 //totalSightDistances += 
-                    sights[i] = hit.distance; // how far from the wall until hit
+                sights[i] = hit.distance; // how far from the wall until hit
                 if (sights[i] > sightMax) sightMax = sights[i];
                 if (sights[i] < sightMin) sightMin = sights[i];
-                //sights[numberOfSights + i - 1] = 1; // 1 if there is a wall
+                sights[numberOfSights + i - 1] = 1; // 1 if there is a wall
             }
             else
             {
                 //totalSightDistances += 
-                    sights[i] = r;
+                sights[i] = r;
                 if (sights[i] > sightMax) sightMax = sights[i];
                 if (sights[i] < sightMin) sightMin = sights[i];
-                //sights[numberOfSights + i - 1] = 0;
+                sights[numberOfSights + i - 1] = -1;
             }
         }
 
@@ -232,11 +258,8 @@ public class CarController : MonoBehaviour
             //sights[i] = Utils.GetRandomDbl()*6-3; // [TODO] temporary. Delete this.
         }
 
-        //var a = CarsControllerHelper.innerPath.Distance(collider);
-        //dummy.transform.position = a.pointA;
-
-        //sightDistances[numberOfSights * 2] = rb.velocity.x;
-        //sightDistances[numberOfSights * 2 + 1] = rb.velocity.y;
+        sights[numberOfSights * 2] = rb.velocity.x;
+        sights[numberOfSights * 2 + 1] = rb.velocity.y;
         //sightDistances[numberOfSights * 2 + 2] = transform.rotation.x;
         //sightDistances[numberOfSights * 2 + 3] = transform.rotation.y;
         //sightDistances[numberOfSights * 2 + 4] = rb.angularVelocity;

@@ -17,7 +17,7 @@ public static class CarsControllerHelper
     public static void InactivateCar()
     {
         NumberOfActiveCars -= 1;
-        Debug.Log(NumberOfActiveCars.ToString());
+        //Debug.Log(NumberOfActiveCars.ToString());
     }
     
     public static void incrementGeneration()
@@ -40,18 +40,21 @@ public static class CarsControllerHelper
 
     public static float distanceToNextCheckpoint(Vector2 position, int currentCheckpoint)
     {
-        if(currentCheckpoint >= checkpoints.Count) // The next checkpoint is the beginning checkpoint
+        if(currentCheckpoint < checkpoints.Count) // The next checkpoint is valid
         {
-            return (Vector2.Distance(position, checkpoints[0].position));
+            return (Vector2.Distance(position, checkpoints[currentCheckpoint + 1].position));
         }
-        return (Vector2.Distance(position, checkpoints[currentCheckpoint+1].position));
+        // Else, the next checkpoint is the starting one
+        return (Vector2.Distance(position, checkpoints[0].position));
     }
 }
 
 public class CarsController : MonoBehaviour
 {
-    private int NumberOfCars = 10;
-    private float percentageToKeep = .3f; // The creme de la creme of each generation is the top NumberOfCars * percentageToKeep.
+    private int NumberOfCars = 30;
+    private float percentageAsElite = .2f; // The creme de la creme of each generation is the top NumberOfCars * percentageToKeep.
+    private float percentageOfEliteChildren = .3f; // The percentage of the next generation made up of elite children.
+    private float percentageToTransfer = .1f; // The top x% will be kept in the next generation.
     private float mutationRate = .01f;
     private int NumberOfCarsCreated = 0;
     private bool needToCreateCars = true;
@@ -63,14 +66,18 @@ public class CarsController : MonoBehaviour
     private int carToReset = 0;
 
     // do not set
-    private int EliteCount;
+    private int numberAsElite;
+    private int numberOfEliteChildren;
+    private int numberToTransfer;
     private double[] probabilityOfSelection; // will determine the weights for each car being selected for the next evolution
 
     public EdgeCollider2D innerPath;
 
     // Use this for initialization
     void Start () {
-        EliteCount = Mathf.CeilToInt((float)NumberOfCars * percentageToKeep);
+        numberAsElite = Mathf.CeilToInt((float)NumberOfCars * percentageAsElite);
+        numberOfEliteChildren = Mathf.CeilToInt((float)NumberOfCars * percentageOfEliteChildren);
+        numberToTransfer = Mathf.CeilToInt((float)NumberOfCars * percentageToTransfer);
 
         // Get a list of checkpoints
         foreach (var node in innerPath.GetComponentsInChildren<Transform>())
@@ -107,12 +114,15 @@ public class CarsController : MonoBehaviour
         if (needToResetCars || needToCreateCars || CarsControllerHelper.NumberOfActiveCars <= 0)
         {
             timer += Time.deltaTime;
+            // Check if cars need to be reset.
             bool resetTimer = false;
-
             resetTimer = createCars();
             resetTimer = resetCars() || resetTimer;
 
-            if (resetTimer) timer = 0f;
+            if (resetTimer)
+            {
+                timer = 0f; // cars need to be reset
+            }
         }
     }
 
@@ -135,9 +145,14 @@ public class CarsController : MonoBehaviour
         return (false);
     }
 
-    private NeuralNetwork_new MakeChildNeuralNetwork(NeuralNetwork_new NN1, NeuralNetwork_new NN2)
+    private NeuralNetwork_new MakeChildNeuralNetwork(NeuralNetwork_new NN1, NeuralNetwork_new NN2, int checkpointsDone1, int checkpointsDone2)
     {
-        return (new NeuralNetwork_new(NN1, NN2));
+        return (new NeuralNetwork_new(NN1, NN2, mutationRate, checkpointsDone1, checkpointsDone2));
+    }
+
+    private NeuralNetwork_new MakeCloneNeuralNetwork(NeuralNetwork_new NN)
+    {
+        return (new NeuralNetwork_new(NN));
     }
 
     private bool resetCars() // returns true if at least 1 car was reset
@@ -153,6 +168,10 @@ public class CarsController : MonoBehaviour
             //int maxCheckpoint = -1;
             for (int i = 0; i < cars.Count; i++)
             {
+                // set car's alpha to 100% opacity
+                cars[i].GetComponent<SpriteRenderer>().color = new Color(1f, 1f, 1f, 0f);
+
+                // get car's checkpoint distance
                 var carControllerScript = cars[i].GetComponent<CarController>();
                 int reachedCheckpoint = carControllerScript.getCheckpoint();
                 float distanceToNextCheckpoint = carControllerScript.distanceToNextCheckpoint();
@@ -170,28 +189,94 @@ public class CarsController : MonoBehaviour
                             .OrderByDescending(a => a[1]) // order by checkpoint
                             .ThenBy(a => a[2]) // then order by distance to next checkpoint
                             .ToList();
+
+            var eliteGroup = maxCheckpointByCar
+                            .OrderByDescending(a => a[1]) // order by checkpoint
+                            .ThenBy(a => a[2]) // then order by distance to next checkpoint
+                            .Take(numberAsElite)
+                            .ToList();
+
+            var otherGroup = maxCheckpointByCar
+                            .OrderByDescending(a => a[1]) // order by checkpoint
+                            .ThenBy(a => a[2]) // then order by distance to next checkpoint
+                            .Skip(numberAsElite)
+                            .ToList();
+
             newGenerationNeuralNetworks.Clear();
             // combine parents
             // Pick parent 1
-            double parentChance1 = Utils.GetRandomDbl();
-            double parentChance2 = Utils.GetRandomDbl();
-            int parentIndex1 = -1;
-            int parentIndex2 = -1;
+            //double parentChance1 = Utils.GetRandomDbl();
+            //double parentChance2 = Utils.GetRandomDbl();
+            //int parentIndex1 = -1;
+            //int parentIndex2 = -1;
 
             for (int i= 0; i<NumberOfCars; i++) // we will fill in newGenerationNeuralNetworks with the same number of cars
-            { 
-                for (int j = 0; j < probabilityOfSelection.Length; j++) // find the indexes of the parents to combine
+            {
+                if (i < numberToTransfer)
                 {
-                    if (parentIndex1 == -1 && parentChance1 < probabilityOfSelection[j])
-                        parentIndex1 = j;
-                    if (parentIndex2 == -1 && parentChance2 < probabilityOfSelection[j])
-                        parentIndex2 = j;
-
-                    if (parentIndex1 != -1 && parentIndex2 != -1) break; // both parents were found
+                    newGenerationNeuralNetworks.Add(
+                        cars[(int)eliteGroup[i][0]]
+                            .GetComponent<CarController>().getNeuralNetwork());
                 }
+                else
+                {
+                    if (i < numberOfEliteChildren+numberToTransfer)
+                    {
+                        int parentIndex1 = Utils.GetRandomInt(0, eliteGroup.Count);
+                        int parentIndex2 = Utils.GetRandomInt(0, eliteGroup.Count);
+                        newGenerationNeuralNetworks.Add(
+                            MakeChildNeuralNetwork(
+                                cars[(int)eliteGroup[parentIndex1][0]]
+                                    .GetComponent<CarController>().getNeuralNetwork(),
 
-                newGenerationNeuralNetworks.Add(
-                    MakeChildNeuralNetwork(cars[parentIndex1].GetComponent<CarController>().getNeuralNetwork(), cars[parentIndex2].GetComponent<CarController>().getNeuralNetwork()));
+                                cars[(int)eliteGroup[parentIndex2][0]]
+                                    .GetComponent<CarController>().getNeuralNetwork(),
+
+                                cars[(int)eliteGroup[parentIndex1][0]]
+                                    .GetComponent<CarController>().getScore(),
+
+                                cars[(int)eliteGroup[parentIndex2][0]]
+                                    .GetComponent<CarController>().getScore()
+                                ));
+                    }
+                    else
+                    {
+                        /*
+                        for (int j = 0; j < probabilityOfSelection.Length; j++) // find the indexes of the parents to combine
+                        {
+                            if (parentIndex1 == -1 && parentChance1 < probabilityOfSelection[j])
+                                parentIndex1 = j;
+                            if (parentIndex2 == -1 && parentChance2 < probabilityOfSelection[j])
+                                parentIndex2 = j;
+
+                            if (parentIndex1 != -1 && parentIndex2 != -1) break; // both parents were found
+                        }
+
+                        newGenerationNeuralNetworks.Add(
+                            MakeChildNeuralNetwork(
+                                cars[(int)shuffled[parentIndex1][0]].GetComponent<CarController>().getNeuralNetwork(),
+                                cars[(int)shuffled[parentIndex2][0]].GetComponent<CarController>().getNeuralNetwork()
+                                //cars[parentIndex1].GetComponent<CarController>().getNeuralNetwork(), cars[parentIndex2].GetComponent<CarController>().getNeuralNetwork()));
+                                ));
+                        */
+                        int parentIndex1 = Utils.GetRandomInt(0, shuffled.Count);
+                        int parentIndex2 = Utils.GetRandomInt(0, shuffled.Count);
+                        newGenerationNeuralNetworks.Add(
+                            MakeChildNeuralNetwork(
+                                cars[(int)shuffled[parentIndex1][0]]
+                                    .GetComponent<CarController>().getNeuralNetwork(),
+
+                                cars[(int)shuffled[parentIndex2][0]]
+                                    .GetComponent<CarController>().getNeuralNetwork(),
+
+                                cars[(int)shuffled[parentIndex1][0]]
+                                    .GetComponent<CarController>().getScore(),
+
+                                cars[(int)shuffled[parentIndex2][0]]
+                                    .GetComponent<CarController>().getScore()
+                                ));
+                    }
+                }
             }
 
             needToResetCars = true;
