@@ -10,7 +10,7 @@ public class CameraFollow : MonoBehaviour {
 	
 	// Move camera every frame.
 	void Update () {
-		transform.position = new Vector3( target.position.x, target.position.y, -10f );
+		//transform.position = new Vector3( target.position.x, target.position.y, -10f );
 	}
 
     // Set a new target for the camera.

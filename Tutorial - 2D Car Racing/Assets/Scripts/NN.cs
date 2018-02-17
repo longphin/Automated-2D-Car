@@ -1,80 +1,7 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
-using UnityEngine;
 
-public static class Utils
-{
-    private static System.Random randomGenerator = new System.Random(1991);
-
-    public static double[] ArrayMultiplication(double[] x, double[] y)
-    {
-        if(x.Length != y.Length) throw new InvalidOperationException("Cannot multiply arrays of different sizes");
-
-        double[] res = new double[x.Length];
-
-        for (int i = 0; i < x.Length; i++)
-        {
-            res[i] = x[i] * y[i];
-        }
-
-        return (res);
-    }
-
-    public static double Max(double x1, double x2)
-    {
-        if (x1 > x2) return (x1);
-        return (x2);
-    }
-
-    public static double GetRandomDbl()
-    {
-        return (randomGenerator.NextDouble());
-    }
-
-    public static int GetRandomInt()
-    {
-        return (randomGenerator.Next());
-    }
-
-    // return random int between [a, b)
-    public static int GetRandomInt(int a, int b)
-    {
-        return (randomGenerator.Next(a, b));
-    }
-
-    public static double[] MatrixTimesVector(double[,] matrix, double[] vec)
-    {
-        double[] res = new double[matrix.GetLength(0)];
-
-        for(int i=0; i<matrix.GetLength(0); i++)
-        {
-            double element = 0;
-            for(int j=0; j<matrix.GetLength(1); j++)
-            {
-                element += matrix[i,j]*vec[j];
-            }
-            res[i] = element;
-        }
-
-        return (res);
-    }
-
-    public static double[] AddVectors(double[] x, double[] y)
-    {
-        if (x.Length != y.Length) throw new InvalidOperationException("Cannot add arrays of different sizes");
-
-        double[] res = new double[x.Length];
-
-        for (int i = 0; i < x.Length; i++)
-        {
-            res[i] = x[i] + y[i];
-        }
-
-        return (res);
-    }
-}
-
+#region Activation functions
 public interface ActivationFunction
 {
     double[] activate(double[] x);
@@ -86,7 +13,7 @@ public class AF_Relu : ActivationFunction
     {
         double[] res = new double[x.Length];
 
-        for(int i=0; i<x.Length; i++)
+        for (int i = 0; i < x.Length; i++)
         {
             res[i] = Utils.Max(0d, x[i]);
         }
@@ -111,6 +38,7 @@ public class AF_Tanh : ActivationFunction
         return (res);
     }
 }
+#endregion
 
 // Layers
 public class Layer_new
@@ -120,7 +48,7 @@ public class Layer_new
     private ActivationFunction af = new AF_Relu();
     private double[] z;
     private double[] a;
-    
+
     // Constructor for non-input layers.
     public Layer_new(double[,] weights, double[] bias)
     {
@@ -141,7 +69,7 @@ public class Layer_new
     {
         this.af = af;
     }
-    
+
     public void calculateFit(double[] a)
     {
         this.z = Utils.AddVectors(Utils.MatrixTimesVector(weightMatrix, a), bias);
@@ -165,17 +93,19 @@ public class Layer_new
 }
 
 // Neural network remake
-public class NeuralNetwork_new{
+public class NeuralNetwork_new
+{
     List<Layer_new> layers = new List<Layer_new>();
 
     int L; // number of layers
     int[] N; // number of nodes per layer
 
-	// Use this for initialization
-	void Start () {
+    // Use this for initialization
+    void Start()
+    {
         //initializeLayers();
-	}
-	
+    }
+
     public NeuralNetwork_new(int L, int[] N)
     {
         this.L = L;
@@ -190,7 +120,7 @@ public class NeuralNetwork_new{
         int[] nodes1 = NN1.getN();
         int[] nodes2 = NN2.getN();
         if (NN1.getL() != NN2.getL() || nodes1.Length != nodes2.Length) throw new ArgumentOutOfRangeException("Cannot combine neural networks of different sizes.");
-        for(int i = 0; i<nodes1.Length; i++)
+        for (int i = 0; i < nodes1.Length; i++)
         {
             if (nodes1[i] != nodes2[i]) throw new ArgumentOutOfRangeException("Cannot combine neural networks of different layer sizes.");
         }
@@ -271,13 +201,13 @@ public class NeuralNetwork_new{
                 {
                     if (Utils.GetRandomDbl() < mutationRate) // mutate weight
                     {
-                        weightMatrix[j, k] = Utils.GetRandomDbl()*2-1; // make between [-1,1]
+                        weightMatrix[j, k] = Utils.GetRandomDbl() * 2 - 1; // make between [-1,1]
                     }
                     else
                     {
                         //weightMatrix[j, k] = (weightMatrix1[j, k] + weightMatrix2[j, k]) / 2d; // take the average
-                        
-                        if (Utils.GetRandomDbl() < (0.5d + 0.1d*(checkpointsDone1-checkpointsDone2))) // Get weight from parent 1
+
+                        if (Utils.GetRandomDbl() < (0.5d + 0.1d * (checkpointsDone1 - checkpointsDone2))) // Get weight from parent 1
                         {
                             weightMatrix[j, k] = weightMatrix1[j, k];
                         }
@@ -285,7 +215,7 @@ public class NeuralNetwork_new{
                         {
                             weightMatrix[j, k] = weightMatrix2[j, k];
                         }
-                        
+
                     }
                 }
             }
@@ -298,12 +228,12 @@ public class NeuralNetwork_new{
             {
                 if (Utils.GetRandomDbl() < mutationRate) // mutation
                 {
-                    bias[j] = Utils.GetRandomDbl()*20-10; // make between [-10,10]
+                    bias[j] = Utils.GetRandomDbl() * CarsControllerHelper.carMaxSightRange * 2 - CarsControllerHelper.carMaxSightRange; // make between [-carMaxSightRange, carMaxSightRange]
                 }
                 else
                 {
                     //bias[j] = (bias1[j] + bias2[j]) / 2d; // take the average
-                    
+
                     if (Utils.GetRandomDbl() < (0.5d + 0.1d * (checkpointsDone1 - checkpointsDone2))) // Get bias from parent 1
                     {
                         bias[j] = bias1[j];
@@ -312,7 +242,7 @@ public class NeuralNetwork_new{
                     {
                         bias[j] = bias2[j];
                     }
-                    
+
                 }
             }
 
@@ -326,16 +256,16 @@ public class NeuralNetwork_new{
     private void initializeLayers()
     {
         layers.Add(new Layer_new(new double[] { 1.0 })); // input layer
-        for(int i=1; i<L; i++)
+        for (int i = 1; i < L; i++)
         {
-            double[,] weightMatrix = new double[N[i], N[i-1]]; // matrix of thislayer.nodes x prevlayer.nodes
-            for(int j=0; j<N[i]; j++)
+            double[,] weightMatrix = new double[N[i], N[i - 1]]; // matrix of thislayer.nodes x prevlayer.nodes
+            for (int j = 0; j < N[i]; j++)
             {
                 //double rowTotal = 0;
-                for(int k=0; k<N[i-1]; k++)
+                for (int k = 0; k < N[i - 1]; k++)
                 {
                     double randWeight = Utils.GetRandomDbl();
-                    weightMatrix[j,k] = randWeight;
+                    weightMatrix[j, k] = randWeight;
                     //rowTotal += randWeight;
                 }
                 // normalize the row so the total weight = 1
@@ -349,11 +279,11 @@ public class NeuralNetwork_new{
 
             // bias vector
             double[] bias = new double[N[i]];
-            for(int j=0; j<N[i]; j++)
+            for (int j = 0; j < N[i]; j++)
             {
                 bias[j] = Utils.GetRandomDbl();
             }
-            
+
             Layer_new newLayer = new Layer_new(weightMatrix, bias); // output layer
             if (i == L - 1) newLayer.setAF(new AF_Tanh());
             layers.Add(newLayer); // hidden layer
@@ -367,7 +297,7 @@ public class NeuralNetwork_new{
         setInputLayer(input);
 
         // Perform forward propogation.
-        for(int i=1; i<layers.Count; i++)
+        for (int i = 1; i < layers.Count; i++)
         {
             layers[i].forwardPropogate(layers[i - 1].getA());
         }

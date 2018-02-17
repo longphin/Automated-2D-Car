@@ -1,7 +1,6 @@
-﻿using UnityEngine;
-using System.Collections;
-using System;
+﻿using System;
 using System.Collections.Generic;
+using UnityEngine;
 
 public class CarController : MonoBehaviour
 {
@@ -11,8 +10,8 @@ public class CarController : MonoBehaviour
     float driftFactorSlippy = 1;
     float maxStickyVelocity = 2.5f;
     
-    public List<SightObjects> sightList = new List<SightObjects>();
-    private GameObject Controller;
+    //public List<SightObjects> sightList = new List<SightObjects>();
+    //private GameObject Controller;
 
     private float fValue; // used for custom input smoothing
 
@@ -21,12 +20,8 @@ public class CarController : MonoBehaviour
     private static int TotalNumberOfInputs = 2 * numberOfSights + 2;
     private static int TotalNumberOfOutputs = 4;
 
-    private float r = 10; // distance of vision
-    private float angleIncrement = 2 * Mathf.PI / numberOfSights;
-
-    private Vector3 startPosition;
-    private Quaternion startAngle;
-    private Vector2 startVelocity;
+    private float r = CarsControllerHelper.carMaxSightRange; // Distance that the car can see
+    private float angleIncrement = 2 * Mathf.PI / numberOfSights; // Determines the angle between each sight ray.
 
     private Rigidbody2D rb;
 
@@ -43,19 +38,44 @@ public class CarController : MonoBehaviour
     private int laps = 0; // [TODO] for each lap, increment this
 
     private float generationTimer = 0f; // this is how long the current generation has been running
-    private float generationMaxTimer = 20f; // this is how long the current generation has to run
+    private float generationMaxTimer = 5f; // this is how long the current generation has to run
+    private float lifetime = 0f; // The full lifetime that the car has been running.
 
-    //private BoxCollider2D collider;
-    //private GameObject dummy;
+    private GameObject innerTrack;
+    private InnerTrack innerTrackScript;
 
+    //private List<float> checkpointTimes = new List<float>();
+
+    private float lastCheckpointTime;
+
+    public void setAngle(Quaternion angle)
+    {
+
+    }
     public void setCheckpoint(int newCheckpoint)
     {
         if (newCheckpoint == lastCheckpoint+1) // make sure the checkpoint was the next in line. This is to prevent going backwards at the start giving a big lead.
+            // [TODO] If this goes for more laps, need to fix this. 
         {
             lastCheckpoint = newCheckpoint;
+            //checkpointTimes.Add(lifetime);
+            lastCheckpointTime = lifetime;
         }
     }
 
+    public void setTrack(GameObject track)
+    {
+        this.innerTrack = track;
+    }
+
+    public bool isCarDead()
+    {
+        return (pause);
+    }
+    public void resetTimer()
+    {
+        generationTimer = 0f;
+    }
     public int getCheckpoint()
     {
         return (lastCheckpoint);
@@ -63,19 +83,16 @@ public class CarController : MonoBehaviour
 
     public int getScore()
     {
-        return (lastCheckpoint + laps*CarsControllerHelper.checkpoints.Count);
+        //return (lastCheckpoint + laps*CarsControllerHelper.checkpoints.Count);
+        return (lastCheckpoint + laps * innerTrackScript.getCheckpointCount());
     }
 
     public float distanceToNextCheckpoint()
     {
         if (deadPosition == null) throw new ArgumentNullException("dead position is null");
 
-        return (CarsControllerHelper.distanceToNextCheckpoint(deadPosition, lastCheckpoint));
-    }
-
-    public void setController(GameObject o)
-    {
-        this.Controller = o;
+        //return (CarsControllerHelper.distanceToNextCheckpoint(deadPosition, lastCheckpoint));
+        return (innerTrackScript.getDistanceToNextCheckpoint(deadPosition, lastCheckpoint));
     }
 
     public void setL(int L)
@@ -93,18 +110,8 @@ public class CarController : MonoBehaviour
         Vector2 initialrotation = transform.eulerAngles;
 
         rb = GetComponent<Rigidbody2D>();
-        //collider = GetComponent<BoxCollider2D>();
 
-        // get initial state
-        startPosition = transform.position;
-        startAngle = transform.rotation;
-        startVelocity = rb.velocity;
-        
-        int i = 0;
-        foreach (SightObjects o in sightList)
-        {
-            o.index = i++;
-        }
+        innerTrackScript = innerTrack.GetComponent<InnerTrack>();
 
         this.thisNN = new NeuralNetwork_new(L, N);
         forwardPropogate();
@@ -115,16 +122,28 @@ public class CarController : MonoBehaviour
         this.thisNN = newNN;
     }
 
-    public void ResetCar(NeuralNetwork_new NN)
+    public float getLastCheckpointTime()
+    {
+        return (lastCheckpointTime);
+    }
+
+    public void ResetCar(NeuralNetwork_new NN, Vector2 pos, Quaternion rotation)
     {
         this.thisNN = NN;
-        transform.position = startPosition;
-        transform.rotation = startAngle;
-        rb.velocity = startVelocity;
+        //checkpointTimes.Clear();
+        lastCheckpointTime = 0f;
+        transform.position = pos;
+        transform.rotation = rotation;
+        //rb.velocity = startVelocity;
         lastCheckpoint = -1;
         generationTimer = 0f;
+        lifetime = 0f;
         GetComponent<SpriteRenderer>().color = new Color(1f, 1f, 1f, 1f);
         pause = false;
+    }
+    public float getLifetime()
+    {
+        return (lifetime);
     }
 
     void Update()
@@ -136,6 +155,7 @@ public class CarController : MonoBehaviour
         else
         {
             generationTimer += Time.deltaTime;
+            lifetime += Time.deltaTime;
         }
     }
 
@@ -174,15 +194,10 @@ public class CarController : MonoBehaviour
         // proportional to your current forward speed (you are converting some
         // forward speed into sideway force)
         float tf = Mathf.Lerp(0, torqueForce, rb.velocity.magnitude / 2);
-        //float smoothing = CustomInputSmoothing((float)outputs[1], (float)outputs[2]); // [remake] need to re-add smoothing using the Neural Network's output
         double[] outputs = this.thisNN.getOutputs();
         float smoothing = CustomInputSmoothing((float)outputs[0], (float)outputs[1]);
-        rb.AddForce(transform.up * (float)(outputs[2] - outputs[3]) * speedForce); // [TODO] is outputs[2] never negative? Cars do not seem to decelerate
-        rb.angularVelocity = smoothing * tf;// * (outputs[1] < network.activationFunc.cutoff() ? -1f : 1f);//Input.GetAxis("Horizontal") * tf;
-
-        //Debug.Log(smoothing.ToString() + " " + (outputs[2] - outputs[3]).ToString());
-        //inputSightDistancesToNeuralNetwork(); // [remake] delete
-        //network.printNN(); // [remake] delete
+        rb.AddForce(transform.up * (float)(outputs[2] - outputs[3]) * speedForce);
+        rb.angularVelocity = smoothing * tf;
     }
 
     void OnCollisionEnter2D(Collision2D col)
@@ -292,12 +307,12 @@ public class CarController : MonoBehaviour
 
     Vector2 ForwardVelocity()
     {
-        return transform.up * Vector2.Dot(GetComponent<Rigidbody2D>().velocity, transform.up);
+        return transform.up * Vector2.Dot(rb.velocity, transform.up);
     }
 
     Vector2 RightVelocity()
     {
-        return transform.right * Vector2.Dot(GetComponent<Rigidbody2D>().velocity, transform.right);
+        return transform.right * Vector2.Dot(rb.velocity, transform.right);
     }
 
     public NeuralNetwork_new getNeuralNetwork()

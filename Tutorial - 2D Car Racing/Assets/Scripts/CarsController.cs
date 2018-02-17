@@ -1,23 +1,19 @@
-﻿using System.Collections;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
 public static class CarsControllerHelper
 {
-    public static int NumberOfCars = 0;
-    public static int NumberOfActiveCars = 0;
-    public static List<GameObject> cars = new List<GameObject>();
-    private static int generation = 0;
-    private static bool generationIterated = true; // will be true if the current generation has already incremented the generation count
-
-    public static List<Transform> checkpoints = new List<Transform>();
-    //public static EdgeCollider2D innerPath;
+    public static int NumberOfCars = 0; // This is the number of cars created.
+    public static int NumberOfActiveCars = 0; // This is the number of active cars.
+    public static List<GameObject> cars = new List<GameObject>(); // This is a list of all of the cars.
+    private static int generation = 0; // This is the current generation count;
+    public static bool generationIterated = false; // This will be true if the current generation count has been incremented by 1.
+    public static float carMaxSightRange = 10f; // This is the range that each car can see. It is also used to normalize values.
 
     public static void InactivateCar()
     {
         NumberOfActiveCars -= 1;
-        //Debug.Log(NumberOfActiveCars.ToString());
     }
     
     public static void incrementGeneration()
@@ -25,27 +21,54 @@ public static class CarsControllerHelper
         if (!generationIterated)
         {
             generation += 1;
+            Debug.Log("Generation " + generation.ToString());
             generationIterated = true;
         }
     }
+}
 
-    public static int GetCheckpointId(Transform checkpoint)
+public class CarStats
+{
+    private int IdCar;
+    private int lastCheckpoint;
+    private float distToNextCheckpoint;
+    private float lifetime;
+    //private List<float> checkpointTimes;
+    private float lastCheckpointTime;
+
+    public CarStats(int id, int checkpoint, float distToNextCheckpoint, float lifetime, float lastCheckpointTime)//List<float> checkpointTimes)
     {
-        for(int i=0; i<checkpoints.Count; i++)
-        {
-            if (checkpoints[i].Equals(checkpoint)) return (i);
-        }
-        return (-1);
+        this.IdCar = id;
+        this.lastCheckpoint = checkpoint;
+        this.distToNextCheckpoint = distToNextCheckpoint;
+        this.lifetime = lifetime;
+        //this.checkpointTimes = checkpointTimes;
+        this.lastCheckpointTime = lastCheckpointTime;
     }
 
-    public static float distanceToNextCheckpoint(Vector2 position, int currentCheckpoint)
+    public int getLastCheckpoint()
     {
-        if(currentCheckpoint < checkpoints.Count) // The next checkpoint is valid
-        {
-            return (Vector2.Distance(position, checkpoints[currentCheckpoint + 1].position));
-        }
-        // Else, the next checkpoint is the starting one
-        return (Vector2.Distance(position, checkpoints[0].position));
+        return(lastCheckpoint);
+    }
+
+    public float getDistNeeded()
+    {
+        return (distToNextCheckpoint);
+    }
+
+    public float getLifetime()
+    {
+        return (lifetime);
+    }
+
+    public int getIdCar()
+    {
+        return (IdCar);
+    }
+
+    public float getLastCheckpointTime()
+    {
+        return (lastCheckpointTime);
     }
 }
 
@@ -53,7 +76,7 @@ public class CarsController : MonoBehaviour
 {
     private int NumberOfCars = 30;
     private float percentageAsElite = .2f; // The creme de la creme of each generation is the top NumberOfCars * percentageToKeep.
-    private float percentageOfEliteChildren = .3f; // The percentage of the next generation made up of elite children.
+    private float percentageOfEliteChildren = .4f; // The percentage of the next generation made up of elite children.
     private float percentageToTransfer = .1f; // The top x% will be kept in the next generation.
     private float mutationRate = .01f;
     private int NumberOfCarsCreated = 0;
@@ -62,16 +85,19 @@ public class CarsController : MonoBehaviour
     private float timeBetweenCreate = 0.25f;
     private bool needToResetCars = false;
     private List<GameObject> cars = new List<GameObject>();
+    private List<CarController> carsScript = new List<CarController>();
     private List<NeuralNetwork_new> newGenerationNeuralNetworks = new List<NeuralNetwork_new>();
     private int carToReset = 0;
 
     // do not set
-    private int numberAsElite;
-    private int numberOfEliteChildren;
-    private int numberToTransfer;
+    private int numberAsElite;// { get { return(Mathf.CeilToInt((float)NumberOfCars * percentageAsElite)); } }
+    private int numberOfEliteChildren;// { get { return(Mathf.CeilToInt((float)NumberOfCars * percentageOfEliteChildren)); } }
+    private int numberToTransfer;// { get { return(Mathf.CeilToInt((float)NumberOfCars * percentageToTransfer)); } }
     private double[] probabilityOfSelection; // will determine the weights for each car being selected for the next evolution
+    private Vector2 position;
+    private Quaternion rotation;
 
-    public EdgeCollider2D innerPath;
+    public GameObject innerTrack;
 
     // Use this for initialization
     void Start () {
@@ -79,14 +105,8 @@ public class CarsController : MonoBehaviour
         numberOfEliteChildren = Mathf.CeilToInt((float)NumberOfCars * percentageOfEliteChildren);
         numberToTransfer = Mathf.CeilToInt((float)NumberOfCars * percentageToTransfer);
 
-        // Get a list of checkpoints
-        foreach (var node in innerPath.GetComponentsInChildren<Transform>())
-        {
-            if(node != innerPath.transform)
-            {
-                CarsControllerHelper.checkpoints.Add(node);
-            }
-        }
+        position = transform.position;
+        rotation = transform.rotation;
 
         // Initialize probabilityOfSelection
         probabilityOfSelection = new double[NumberOfCars];
@@ -131,8 +151,12 @@ public class CarsController : MonoBehaviour
         if (needToCreateCars && timer >= timeBetweenCreate)
         {
             var newCar = (GameObject)Instantiate(Resources.Load("Car_new"), transform.position, transform.rotation);
+            newCar.GetComponent<CarController>().setTrack(innerTrack);
+            var carScript = newCar.GetComponent<CarController>();
+            carScript.setTrack(innerTrack);
 
             cars.Add(newCar);
+            carsScript.Add(carScript);
             CarsControllerHelper.cars.Add(newCar);
             CarsControllerHelper.NumberOfCars += 1;
             CarsControllerHelper.NumberOfActiveCars += 1;
@@ -164,59 +188,68 @@ public class CarsController : MonoBehaviour
             CarsControllerHelper.incrementGeneration();
 
             // find the max 
-            List<float[]> maxCheckpointByCar = new List<float[]>(); // [TODO] instead of storing a mix of types, make this a List<custom object>
-            //int maxCheckpoint = -1;
+            List<CarStats> carStats = new List<CarStats>();
             for (int i = 0; i < cars.Count; i++)
             {
                 // set car's alpha to 100% opacity
                 cars[i].GetComponent<SpriteRenderer>().color = new Color(1f, 1f, 1f, 0f);
 
                 // get car's checkpoint distance
-                var carControllerScript = cars[i].GetComponent<CarController>();
+                var carControllerScript = carsScript[i];
                 int reachedCheckpoint = carControllerScript.getCheckpoint();
                 float distanceToNextCheckpoint = carControllerScript.distanceToNextCheckpoint();
-                maxCheckpointByCar.Add(new float[] { (float)i, (float)reachedCheckpoint, distanceToNextCheckpoint });
-                //if (reachedCheckpoint > maxCheckpoint) maxCheckpoint = reachedCheckpoint;
+                float lifetime = carControllerScript.getLifetime();
+                //List<float> checkpointTimes = carControllerScript.getCheckpointTimes();
+                float lastCheckpointTime = carControllerScript.getLastCheckpointTime();
+                carStats.Add(new CarStats(i, reachedCheckpoint, distanceToNextCheckpoint, lifetime, lastCheckpointTime));
             }
-            /*
-            var shuffled = maxCheckpointByCar
-                            .FindAll(a => a[1]==maxCheckpoint)
-                            .OrderBy(a => Utils.GetRandomInt())
-                            .Take(EliteCount)
-                            .ToList();
-            */
-            var shuffled = maxCheckpointByCar
-                            .OrderByDescending(a => a[1]) // order by checkpoint
-                            .ThenBy(a => a[2]) // then order by distance to next checkpoint
+            
+            
+            var shuffled = carStats
+                            .OrderByDescending(a => a.getLastCheckpoint()) // order by checkpoint
+                            //.ThenBy(a => a.getLastCheckpointTime())
+                            .ThenBy(a => a.getDistNeeded()) // then order by distance to next checkpoint
+                            .ThenBy(a => a.getLastCheckpointTime())
+                            //.ThenBy(a => a.getLifetime())
                             .ToList();
 
-            var eliteGroup = maxCheckpointByCar
-                            .OrderByDescending(a => a[1]) // order by checkpoint
-                            .ThenBy(a => a[2]) // then order by distance to next checkpoint
+            /*
+            var eliteGroup = carStats
+                            .OrderByDescending(a => a.getLastCheckpoint()) // order by checkpoint
+                            .ThenBy(a => a.getDistNeeded()) // then order by distance to next checkpoint
+                            .ThenBy(a => a.getLifetime())
                             .Take(numberAsElite)
                             .ToList();
+            */
 
-            var otherGroup = maxCheckpointByCar
-                            .OrderByDescending(a => a[1]) // order by checkpoint
-                            .ThenBy(a => a[2]) // then order by distance to next checkpoint
-                            .Skip(numberAsElite)
-                            .ToList();
+            var eliteGroup = shuffled
+                                .Take(numberAsElite)
+                                .ToList();
+
+            /*
+            carStats.Sort();
+
+            var shuffled = carStats.ToList();
+            var eliteGroup = carStats
+                                .Take(numberAsElite)
+                                .ToList();
+            */
+
+            foreach(var cs in eliteGroup)
+            {
+                cars[cs.getIdCar()].GetComponent<SpriteRenderer>().color = new Color(1f, 0f, 0f, 1f);
+                Debug.Log("elite car: " + cs.getIdCar().ToString());
+            }
 
             newGenerationNeuralNetworks.Clear();
-            // combine parents
-            // Pick parent 1
-            //double parentChance1 = Utils.GetRandomDbl();
-            //double parentChance2 = Utils.GetRandomDbl();
-            //int parentIndex1 = -1;
-            //int parentIndex2 = -1;
 
             for (int i= 0; i<NumberOfCars; i++) // we will fill in newGenerationNeuralNetworks with the same number of cars
             {
                 if (i < numberToTransfer)
                 {
                     newGenerationNeuralNetworks.Add(
-                        cars[(int)eliteGroup[i][0]]
-                            .GetComponent<CarController>().getNeuralNetwork());
+                        carsScript[eliteGroup[i].getIdCar()].getNeuralNetwork());
+                    Debug.Log("transfer: " + eliteGroup[i].getIdCar().ToString());
                 }
                 else
                 {
@@ -226,54 +259,28 @@ public class CarsController : MonoBehaviour
                         int parentIndex2 = Utils.GetRandomInt(0, eliteGroup.Count);
                         newGenerationNeuralNetworks.Add(
                             MakeChildNeuralNetwork(
-                                cars[(int)eliteGroup[parentIndex1][0]]
-                                    .GetComponent<CarController>().getNeuralNetwork(),
+                                carsScript[eliteGroup[parentIndex1].getIdCar()].getNeuralNetwork(),
 
-                                cars[(int)eliteGroup[parentIndex2][0]]
-                                    .GetComponent<CarController>().getNeuralNetwork(),
+                                carsScript[eliteGroup[parentIndex2].getIdCar()].getNeuralNetwork(),
 
-                                cars[(int)eliteGroup[parentIndex1][0]]
-                                    .GetComponent<CarController>().getScore(),
+                                carsScript[eliteGroup[parentIndex1].getIdCar()].getScore(),
 
-                                cars[(int)eliteGroup[parentIndex2][0]]
-                                    .GetComponent<CarController>().getScore()
+                                carsScript[eliteGroup[parentIndex2].getIdCar()].getScore()
                                 ));
                     }
                     else
                     {
-                        /*
-                        for (int j = 0; j < probabilityOfSelection.Length; j++) // find the indexes of the parents to combine
-                        {
-                            if (parentIndex1 == -1 && parentChance1 < probabilityOfSelection[j])
-                                parentIndex1 = j;
-                            if (parentIndex2 == -1 && parentChance2 < probabilityOfSelection[j])
-                                parentIndex2 = j;
-
-                            if (parentIndex1 != -1 && parentIndex2 != -1) break; // both parents were found
-                        }
-
-                        newGenerationNeuralNetworks.Add(
-                            MakeChildNeuralNetwork(
-                                cars[(int)shuffled[parentIndex1][0]].GetComponent<CarController>().getNeuralNetwork(),
-                                cars[(int)shuffled[parentIndex2][0]].GetComponent<CarController>().getNeuralNetwork()
-                                //cars[parentIndex1].GetComponent<CarController>().getNeuralNetwork(), cars[parentIndex2].GetComponent<CarController>().getNeuralNetwork()));
-                                ));
-                        */
                         int parentIndex1 = Utils.GetRandomInt(0, shuffled.Count);
                         int parentIndex2 = Utils.GetRandomInt(0, shuffled.Count);
                         newGenerationNeuralNetworks.Add(
                             MakeChildNeuralNetwork(
-                                cars[(int)shuffled[parentIndex1][0]]
-                                    .GetComponent<CarController>().getNeuralNetwork(),
+                                carsScript[shuffled[parentIndex1].getIdCar()].getNeuralNetwork(),
 
-                                cars[(int)shuffled[parentIndex2][0]]
-                                    .GetComponent<CarController>().getNeuralNetwork(),
+                                carsScript[shuffled[parentIndex2].getIdCar()].getNeuralNetwork(),
 
-                                cars[(int)shuffled[parentIndex1][0]]
-                                    .GetComponent<CarController>().getScore(),
+                                carsScript[shuffled[parentIndex1].getIdCar()].getScore(),
 
-                                cars[(int)shuffled[parentIndex2][0]]
-                                    .GetComponent<CarController>().getScore()
+                                carsScript[shuffled[parentIndex2].getIdCar()].getScore()
                                 ));
                     }
                 }
@@ -286,13 +293,14 @@ public class CarsController : MonoBehaviour
         {
             if (newGenerationNeuralNetworks.Count <= 0) throw new MissingReferenceException("No child neural network");
 
-            cars[carToReset].GetComponent<CarController>().ResetCar(newGenerationNeuralNetworks[0]);
+            carsScript[carToReset].ResetCar(newGenerationNeuralNetworks[0], this.position, this.rotation);
             newGenerationNeuralNetworks.RemoveAt(0);
 
             CarsControllerHelper.NumberOfActiveCars += 1;
             carToReset += 1;
             if (carToReset >= NumberOfCars)
             {
+                CarsControllerHelper.generationIterated = false;
                 needToResetCars = false;
             }
 

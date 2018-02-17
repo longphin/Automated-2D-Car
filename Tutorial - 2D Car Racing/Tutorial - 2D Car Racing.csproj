@@ -285,6 +285,7 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Assets\GameController.cs" />
     <Compile Include="Assets\Scripts\BoxToEdgeIndicator.cs" />
     <Compile Include="Assets\Scripts\CameraFollow.cs" />
     <Compile Include="Assets\Scripts\Car2dController.cs" />
@@ -294,11 +295,13 @@
     <Compile Include="Assets\Scripts\CheckpointTrigger.cs" />
     <Compile Include="Assets\Scripts\EdgeDetection.cs" />
     <Compile Include="Assets\Scripts\GodScript.cs" />
+    <Compile Include="Assets\Scripts\InnerTrack.cs" />
     <Compile Include="Assets\Scripts\NeuralNetworkController.cs" />
     <Compile Include="Assets\Scripts\NeuralNetworkScript.cs" />
     <Compile Include="Assets\Scripts\NN.cs" />
     <Compile Include="Assets\Scripts\PathTracker.cs" />
     <Compile Include="Assets\Scripts\SightObjects.cs" />
+    <Compile Include="Assets\Scripts\Utils.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <Target Name="GenerateTargetFrameworkMonikerAttribute" />
