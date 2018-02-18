@@ -285,7 +285,6 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Assets\GameController.cs" />
     <Compile Include="Assets\Scripts\BoxToEdgeIndicator.cs" />
     <Compile Include="Assets\Scripts\CameraFollow.cs" />
     <Compile Include="Assets\Scripts\Car2dController.cs" />
@@ -294,6 +293,7 @@
     <Compile Include="Assets\Scripts\ChangeBrakeColor.cs" />
     <Compile Include="Assets\Scripts\CheckpointTrigger.cs" />
     <Compile Include="Assets\Scripts\EdgeDetection.cs" />
+    <Compile Include="Assets\Scripts\GameController.cs" />
     <Compile Include="Assets\Scripts\GodScript.cs" />
     <Compile Include="Assets\Scripts\InnerTrack.cs" />
     <Compile Include="Assets\Scripts\NeuralNetworkController.cs" />

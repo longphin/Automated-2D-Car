@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using UnityEngine;
 
 #region Activation functions
 public interface ActivationFunction
@@ -43,8 +44,8 @@ public class AF_Tanh : ActivationFunction
 // Layers
 public class Layer_new
 {
-    public double[,] weightMatrix;
-    public double[] bias;
+    private double[,] weightMatrix;
+    private double[] bias;
     private ActivationFunction af = new AF_Relu();
     private double[] z;
     private double[] a;
@@ -89,6 +90,16 @@ public class Layer_new
     {
         calculateFit(prevLayera);
         calculateAF();
+    }
+
+    public double[] getBias()
+    {
+        return (bias);
+    }
+
+    public double[,] getWeightMatrix()
+    {
+        return (weightMatrix);
     }
 }
 
@@ -179,11 +190,11 @@ public class NeuralNetwork_new
 
     public double[,] getWeightMatrix(int layer)
     {
-        return (layers[layer].weightMatrix);
+        return (layers[layer].getWeightMatrix());
     }
     public double[] getBias(int layer)
     {
-        return (layers[layer].bias);
+        return (layers[layer].getBias());
     }
 
     private void initializeChildLayers(NeuralNetwork_new NN1, NeuralNetwork_new NN2, float mutationRate, int checkpointsDone1, int checkpointsDone2)
@@ -313,5 +324,19 @@ public class NeuralNetwork_new
     public double[] getOutputs()
     {
         return (layers[layers.Count - 1].getA());
+    }
+
+    public void printNN()
+    {
+        for(int i = 0; i<layers.Count; i++)
+        {
+            double[] a = layers[i].getA();
+            Debug.Log("layer " + i.ToString());
+
+            for (int j =0; j<a.Length; j++)
+            {
+                Debug.Log(a[j].ToString());
+            }
+        }
     }
 }

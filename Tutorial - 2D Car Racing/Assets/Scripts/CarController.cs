@@ -10,14 +10,11 @@ public class CarController : MonoBehaviour
     float driftFactorSlippy = 1;
     float maxStickyVelocity = 2.5f;
     
-    //public List<SightObjects> sightList = new List<SightObjects>();
-    //private GameObject Controller;
-
     private float fValue; // used for custom input smoothing
 
     // sight directions
     private static Int16 numberOfSights = 45;
-    private static int TotalNumberOfInputs = 2 * numberOfSights + 2;
+    private static int TotalNumberOfInputs = 2 * numberOfSights + 3;
     private static int TotalNumberOfOutputs = 4;
 
     private float r = CarsControllerHelper.carMaxSightRange; // Distance that the car can see
@@ -48,9 +45,17 @@ public class CarController : MonoBehaviour
 
     private float lastCheckpointTime;
 
+    private int IdCar;
+    private int IdSpawner;
+
     public void setAngle(Quaternion angle)
     {
 
+    }
+
+    public void setIdSpawner(int id)
+    {
+        IdSpawner = id;
     }
     public void setCheckpoint(int newCheckpoint)
     {
@@ -63,9 +68,20 @@ public class CarController : MonoBehaviour
         }
     }
 
+    public int getId()
+    {
+        return (IdCar);
+    }
+
+    public void setId(int id)
+    {
+        this.IdCar = id;
+    }
+
     public void setTrack(GameObject track)
     {
         this.innerTrack = track;
+        this.innerTrackScript = track.GetComponent<InnerTrack>();
     }
 
     public bool isCarDead()
@@ -107,11 +123,9 @@ public class CarController : MonoBehaviour
     // Use this for initialization
     void Start()
     {
-        Vector2 initialrotation = transform.eulerAngles;
-
         rb = GetComponent<Rigidbody2D>();
-
-        innerTrackScript = innerTrack.GetComponent<InnerTrack>();
+        rb.angularVelocity = 0;
+        rb.velocity = Vector2.zero;
 
         this.thisNN = new NeuralNetwork_new(L, N);
         forwardPropogate();
@@ -196,8 +210,15 @@ public class CarController : MonoBehaviour
         float tf = Mathf.Lerp(0, torqueForce, rb.velocity.magnitude / 2);
         double[] outputs = this.thisNN.getOutputs();
         float smoothing = CustomInputSmoothing((float)outputs[0], (float)outputs[1]);
-        rb.AddForce(transform.up * (float)(outputs[2] - outputs[3]) * speedForce);
+        //Debug.Log("smoothing: " + smoothing.ToString());
+        if (Double.IsNaN(outputs[2]) || Double.IsNaN(outputs[3]))
+        {
+            thisNN.printNN();
+        }
+
+        rb.AddForce(transform.up * (float)(outputs[2] - outputs[3]) * speedForce); //[TODO] this gives error at generation 13?
         rb.angularVelocity = smoothing * tf;
+        //rb.angularVelocity = 0;
     }
 
     void OnCollisionEnter2D(Collision2D col)
@@ -215,7 +236,6 @@ public class CarController : MonoBehaviour
     private void setCarAsDead()
     {
         pause = true;
-        rb.angularVelocity = 0;
         deadPosition = transform.position;
         
         CarsControllerHelper.InactivateCar();
@@ -275,6 +295,7 @@ public class CarController : MonoBehaviour
 
         sights[numberOfSights * 2] = rb.velocity.x;
         sights[numberOfSights * 2 + 1] = rb.velocity.y;
+        sights[numberOfSights * 2 + 2] = rb.angularVelocity/200;
         //sightDistances[numberOfSights * 2 + 2] = transform.rotation.x;
         //sightDistances[numberOfSights * 2 + 3] = transform.rotation.y;
         //sightDistances[numberOfSights * 2 + 4] = rb.angularVelocity;
