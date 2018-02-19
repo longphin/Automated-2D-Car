@@ -7,14 +7,14 @@ public class GameController : MonoBehaviour {
     public GameObject[] carSpawners;
     private CarsController[] carSpawnersScript;
 
-    private int[] numberOfCars = new int[] { 15, 15 };
+    private int[] numberOfCars = new int[] { 17, 17 };
     private float percentageAsElite = .2f; // The creme de la creme of each generation is the top NumberOfCars * percentageToKeep.
     private float percentageOfEliteChildren = .4f; // The percentage of the next generation made up of elite children.
     private float percentageToTransfer = .2f; // The top x% will be kept in the next generation.
     private float mutationRate = .01f;
     private float timer = 0f;
     private float timeBetweenCreate = 0.25f;
-    private float timeBetweenNeuralNetworkCreate = 0.1f;
+    //private float timeBetweenNeuralNetworkCreate = 0.1f;
 
     // do not set
     private int[] numberOfCarsCreated;
@@ -120,7 +120,6 @@ public class GameController : MonoBehaviour {
             var newCar = (GameObject)Instantiate(Resources.Load("Car_new"), position[i], rotation[i]);
             var carScript = newCar.GetComponent<CarController>();
             carScript.setId(CarsControllerHelper.NumberOfCarsCreated);
-            Debug.Log("created car " + CarsControllerHelper.NumberOfCarsCreated.ToString());
             carScript.setTrack(carSpawnersScript[i].getInnerTrack());
             carScript.setIdSpawner(i);
             
@@ -129,7 +128,6 @@ public class GameController : MonoBehaviour {
             numberOfCarsCreated[i] += 1;
             CarsControllerHelper.NumberOfActiveCars += 1;
             CarsControllerHelper.NumberOfCarsCreated += 1;
-            //Debug.Log("created " + CarsControllerHelper.NumberOfCarsCreated.ToString() + " out of " + CarsControllerHelper.NumberOfCars);
             if (numberOfCarsCreated[i] >= numberOfCars[i])
             {
                 numberOfSpawnersFinished += 1;
@@ -203,10 +201,11 @@ public class GameController : MonoBehaviour {
         for(int i = 0; i<carSpawners.Length; i++)
         {
             // transfer these exactly
-            for(int j = 0; j<eliteGroup[i].Count; j++)
+            for(int j = 0; j<numberAsElite[i]; j++)
             {
                 int carId = eliteGroup[i][j].getIdCar();
                 newGenerationNeuralNetworks[i].Add(carsScript[i][carId].getNeuralNetwork());
+                //Debug.Log("elite [" + i.ToString() + "] [" + j.ToString() + "]");
             }
 
             // make elite children
@@ -225,15 +224,19 @@ public class GameController : MonoBehaviour {
                         parentScript1.getScore(),
                         parentScript2.getScore()
                         ));
+                //Debug.Log("elite child [" + parentSpawner1.ToString() + "] [" + parentIndex1.ToString() + "] + ["
+                //    + parentSpawner2.ToString() + "] [" + parentIndex2.ToString() + "]");
             }
 
             // Combine the rest based from any units
-            for(int j =0; j<numberOfCarsCreated[i] - eliteGroup[i].Count - numberOfEliteChildren[i]; j++) // [TODO] this isn't quite right. It's creating more than it needs to, maybe?
+            for(int j =0; j<numberOfCarsCreated[i] - numberAsElite[i] - numberOfEliteChildren[i]; j++)
             {
                 int parentIndex1 = Utils.GetRandomInt(0, shuffledGroup.Count);
                 int parentIndex2 = Utils.GetRandomInt(0, shuffledGroup.Count);
-                var parentScript1 = carsScript[shuffledGroup[parentIndex1].getIdSpawner()][shuffledGroup[parentIndex1].getIdCar()];
-                var parentScript2 = carsScript[shuffledGroup[parentIndex2].getIdSpawner()][shuffledGroup[parentIndex2].getIdCar()];
+                int parentSpawner1 = shuffledGroup[parentIndex1].getIdSpawner();
+                int parentSpawner2 = shuffledGroup[parentIndex2].getIdSpawner();
+                var parentScript1 = carsScript[parentSpawner1][shuffledGroup[parentIndex1].getIdCar()];
+                var parentScript2 = carsScript[parentSpawner2][shuffledGroup[parentIndex2].getIdCar()];
                 newGenerationNeuralNetworks[i].Add(
                     MakeChildNeuralNetwork(
                         parentScript1.getNeuralNetwork(),
@@ -241,6 +244,8 @@ public class GameController : MonoBehaviour {
                         parentScript1.getScore(),
                         parentScript2.getScore()
                         ));
+                //Debug.Log("regular child [" + parentSpawner1.ToString() + "] [" + parentIndex1.ToString() +"] + ["
+                //    + parentSpawner2.ToString() + "] [" + parentIndex2.ToString() + "]");
             }
         }
 
@@ -269,7 +274,7 @@ public class GameController : MonoBehaviour {
 
                 int carToReset = numberOfCarsReset[i];
                 carsScript[i][carToReset].ResetCar(newGenerationNeuralNetworks[i][0], position[i], rotation[i]);
-                carsScript[i][carToReset].setTrack(carSpawnersScript[i].getInnerTrack());
+                //carsScript[i][carToReset].setTrack(carSpawnersScript[i].getInnerTrack()); // Not needed because each car is reset within its own track
                 newGenerationNeuralNetworks[i].RemoveAt(0);
 
                 numberOfCarsReset[i] += 1;

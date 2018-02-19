@@ -38,7 +38,7 @@ public class CarController : MonoBehaviour
     private float generationMaxTimer = 5f; // this is how long the current generation has to run
     private float lifetime = 0f; // The full lifetime that the car has been running.
 
-    private GameObject innerTrack;
+    //private GameObject innerTrack;
     private InnerTrack innerTrackScript;
 
     //private List<float> checkpointTimes = new List<float>();
@@ -80,7 +80,7 @@ public class CarController : MonoBehaviour
 
     public void setTrack(GameObject track)
     {
-        this.innerTrack = track;
+        //this.innerTrack = track;
         this.innerTrackScript = track.GetComponent<InnerTrack>();
     }
 
@@ -105,9 +105,6 @@ public class CarController : MonoBehaviour
 
     public float distanceToNextCheckpoint()
     {
-        if (deadPosition == null) throw new ArgumentNullException("dead position is null");
-
-        //return (CarsControllerHelper.distanceToNextCheckpoint(deadPosition, lastCheckpoint));
         return (innerTrackScript.getDistanceToNextCheckpoint(deadPosition, lastCheckpoint));
     }
 
@@ -216,7 +213,7 @@ public class CarController : MonoBehaviour
             thisNN.printNN();
         }
 
-        rb.AddForce(transform.up * (float)(outputs[2] - outputs[3]) * speedForce); //[TODO] this gives error at generation 13?
+        rb.AddForce(transform.up * (float)(outputs[2] - outputs[3]) * speedForce);
         rb.angularVelocity = smoothing * tf;
         //rb.angularVelocity = 0;
     }
@@ -288,14 +285,13 @@ public class CarController : MonoBehaviour
 
         for(int i=0; i<numberOfSights; i++)
         {
-            sights[i] = (sights[i] - sightMin) / (sightMax - sightMin) *2-2;// * 6 - 3; // normalize sight range to [-1, 1]
-            //sights[i] = (sights[i] - averageSight) / totalSightDistances * 3;
-            //sights[i] = Utils.GetRandomDbl()*6-3; // [TODO] temporary. Delete this.
+            sights[i] = (sights[i] - sightMin) / (sightMax - sightMin) *2-2;// normalize sight range to [-1, 1]
+
         }
 
         sights[numberOfSights * 2] = rb.velocity.x;
         sights[numberOfSights * 2 + 1] = rb.velocity.y;
-        sights[numberOfSights * 2 + 2] = rb.angularVelocity/200;
+        sights[numberOfSights * 2 + 2] = rb.angularVelocity/50;
         //sightDistances[numberOfSights * 2 + 2] = transform.rotation.x;
         //sightDistances[numberOfSights * 2 + 3] = transform.rotation.y;
         //sightDistances[numberOfSights * 2 + 4] = rb.angularVelocity;
@@ -339,5 +335,16 @@ public class CarController : MonoBehaviour
     public NeuralNetwork_new getNeuralNetwork()
     {
         return (thisNN);
+    }
+
+    //[TODO]
+    public void writeNeuralNetworkToFile()
+    {
+
+    }
+    //[TODO]
+    public void readNeuralNetworkFromFile()
+    {
+
     }
 }

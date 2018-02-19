@@ -6,6 +6,8 @@ using UnityEngine;
 public interface ActivationFunction
 {
     double[] activate(double[] x);
+    double[,] initializeWeightMatrix(int n, int m);
+    double[] initializeBias(int n);
 }
 
 public class AF_Relu : ActivationFunction
@@ -20,6 +22,40 @@ public class AF_Relu : ActivationFunction
         }
 
         return (res);
+    }
+
+    public double[,] initializeWeightMatrix(int n, int m) // creates an n by m matrix
+    {
+        double[,] weightMatrix = new double[n, m]; // matrix of thislayer.nodes x prevlayer.nodes
+        for (int j = 0; j < n; j++)
+        {
+            for (int k = 0; k < m; k++)
+            {
+                double randWeight = Utils.GetRandomDbl()*Math.Sqrt(2/m);
+                weightMatrix[j, k] = randWeight;
+            }
+        }
+
+        // bias vector
+        double[] bias = new double[n];
+        for (int j = 0; j < n; j++)
+        {
+            bias[j] = Utils.GetRandomDbl();
+        }
+
+        return (weightMatrix);
+    }
+
+    public double[] initializeBias(int n)
+    {
+        // bias vector
+        double[] bias = new double[n];
+        for (int j = 0; j < n; j++)
+        {
+            bias[j] = Utils.GetRandomDbl();
+        }
+
+        return (bias);
     }
 }
 
@@ -37,6 +73,32 @@ public class AF_Tanh : ActivationFunction
         }
 
         return (res);
+    }
+
+    public double[,] initializeWeightMatrix(int n, int m) // creates an n by m matrix
+    {
+        double[,] weightMatrix = new double[n, m]; // matrix of thislayer.nodes x prevlayer.nodes
+        for (int j = 0; j < n; j++)
+        {
+            for (int k = 0; k < m; k++)
+            {
+                double randWeight = Utils.GetRandomDbl() * Math.Sqrt(1/m);
+                weightMatrix[j, k] = randWeight;
+            }
+        }
+        return (weightMatrix);
+    }
+
+    public double[] initializeBias(int n)
+    {
+        // bias vector
+        double[] bias = new double[n];
+        for (int j = 0; j < n; j++)
+        {
+            bias[j] = Utils.GetRandomDbl();
+        }
+
+        return (bias);
     }
 }
 #endregion
@@ -58,6 +120,15 @@ public class Layer_new
 
         this.z = new double[weights.GetLength(0)];
         this.a = new double[weights.GetLength(0)];
+    }
+
+    public Layer_new(int n, int m, ActivationFunction af)
+    {
+        this.weightMatrix = af.initializeWeightMatrix(n, m);
+        this.bias = af.initializeBias(n);
+
+        this.z = new double[n];
+        this.a = new double[n];
     }
 
     // Constructor for input layer only.
@@ -174,6 +245,7 @@ public class NeuralNetwork_new
 
             Layer_new newLayer = new Layer_new(weightMatrix, bias); // output layer
             if (i == L - 1) newLayer.setAF(new AF_Tanh());
+            else newLayer.setAF(new AF_Relu());
             layers.Add(newLayer); // hidden layer
         }
     }
@@ -269,37 +341,17 @@ public class NeuralNetwork_new
         layers.Add(new Layer_new(new double[] { 1.0 })); // input layer
         for (int i = 1; i < L; i++)
         {
-            double[,] weightMatrix = new double[N[i], N[i - 1]]; // matrix of thislayer.nodes x prevlayer.nodes
-            for (int j = 0; j < N[i]; j++)
+            if (i == L - 1)
             {
-                //double rowTotal = 0;
-                for (int k = 0; k < N[i - 1]; k++)
-                {
-                    double randWeight = Utils.GetRandomDbl();
-                    weightMatrix[j, k] = randWeight;
-                    //rowTotal += randWeight;
-                }
-                // normalize the row so the total weight = 1
-                /*
-                for(int k=0; k<N[i-1]; k++)
-                {
-                    weightMatrix[j, k] = weightMatrix[j, k] / rowTotal;
-                }
-                */
+                Layer_new newLayer = new Layer_new(N[i], N[i - 1], new AF_Tanh());
+                layers.Add(newLayer); // output layer
             }
-
-            // bias vector
-            double[] bias = new double[N[i]];
-            for (int j = 0; j < N[i]; j++)
+            else
             {
-                bias[j] = Utils.GetRandomDbl();
+                Layer_new newLayer = new Layer_new(N[i], N[i - 1], new AF_Relu());
+                layers.Add(newLayer); // hidden layer
             }
-
-            Layer_new newLayer = new Layer_new(weightMatrix, bias); // output layer
-            if (i == L - 1) newLayer.setAF(new AF_Tanh());
-            layers.Add(newLayer); // hidden layer
         }
-        // output layer
     }
 
     public void forwardPropogate(Layer_new input)

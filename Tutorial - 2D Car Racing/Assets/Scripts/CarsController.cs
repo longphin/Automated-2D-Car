@@ -4,10 +4,8 @@ using UnityEngine;
 
 public static class CarsControllerHelper
 {
-    public static int NumberOfCars = 30; // This is the number of cars created.
+    //public static int NumberOfCars = 30; // This is the number of cars created.
     public static int NumberOfActiveCars = 0; // This is the number of active cars.
-    //public static List<GameObject> cars = new List<GameObject>(); // This is a list of all of the cars.
-    //public static List<CarController> carsScript = new List<CarController>();
     private static int generation = 0; // This is the current generation count;
     public static bool generationIterated = false; // This will be true if the current generation count has been incremented by 1.
     public static float carMaxSightRange = 10f; // This is the range that each car can see. It is also used to normalize values.
