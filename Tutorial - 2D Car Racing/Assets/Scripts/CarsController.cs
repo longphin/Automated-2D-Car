@@ -44,8 +44,9 @@ public class CarStats
     //private List<float> checkpointTimes;
     private float lastCheckpointTime;
     private int IdSpawner;
+    private bool finishedLap;
 
-    public CarStats(int id, int checkpoint, float distToNextCheckpoint, float lifetime, float lastCheckpointTime, int IdSpawner)
+    public CarStats(int id, int checkpoint, float distToNextCheckpoint, float lifetime, float lastCheckpointTime, int IdSpawner, bool finishedLap)
     {
         this.IdCar = id;
         this.lastCheckpoint = checkpoint;
@@ -54,6 +55,7 @@ public class CarStats
         //this.checkpointTimes = checkpointTimes;
         this.lastCheckpointTime = lastCheckpointTime;
         this.IdSpawner = IdSpawner;
+        this.finishedLap = finishedLap;
     }
 
     public int getIdSpawner()
@@ -83,6 +85,11 @@ public class CarStats
     public float getLastCheckpointTime()
     {
         return (lastCheckpointTime);
+    }
+
+    public bool getFinishedLap()
+    {
+        return (finishedLap);
     }
 }
 

@@ -31,6 +31,7 @@ public class CarController : MonoBehaviour
 
     private int lastCheckpoint = -1;
     private Vector2 deadPosition; // When the car hits a wall, it will be "dead" at that position.
+    private Quaternion deadRotation;
 
     private int laps = 0; // [TODO] for each lap, increment this
 
@@ -47,6 +48,9 @@ public class CarController : MonoBehaviour
 
     private int IdCar;
     private int IdSpawner;
+
+    private bool IsElite = false;
+    private bool finishedLap = false;
 
     public void setAngle(Quaternion angle)
     {
@@ -66,6 +70,11 @@ public class CarController : MonoBehaviour
             //checkpointTimes.Add(lifetime);
             lastCheckpointTime = lifetime;
         }
+    }
+
+    public bool getFinishedStatus()
+    {
+        return (finishedLap);
     }
 
     public int getId()
@@ -103,6 +112,15 @@ public class CarController : MonoBehaviour
         return (lastCheckpoint + laps * innerTrackScript.getCheckpointCount());
     }
 
+    public void addLap()
+    {
+        laps += 1;
+    }
+    public void setAsFinishedLap()
+    {
+        finishedLap = true;
+    }
+
     public float distanceToNextCheckpoint()
     {
         return (innerTrackScript.getDistanceToNextCheckpoint(deadPosition, lastCheckpoint));
@@ -138,8 +156,19 @@ public class CarController : MonoBehaviour
         return (lastCheckpointTime);
     }
 
+    public void ResetElite()
+    {
+        resetCarState();
+
+        transform.position = deadPosition;
+        transform.rotation = deadRotation;
+        GetComponent<SpriteRenderer>().color = new Color(1f, .5f, .5f, 1f);
+    }
+
     public void ResetCar(NeuralNetwork_new NN, Vector2 pos, Quaternion rotation)
     {
+        resetCarState();
+
         this.thisNN = NN;
         //checkpointTimes.Clear();
         lastCheckpointTime = 0f;
@@ -152,6 +181,14 @@ public class CarController : MonoBehaviour
         GetComponent<SpriteRenderer>().color = new Color(1f, 1f, 1f, 1f);
         pause = false;
     }
+
+    private void resetCarState()
+    {
+        rb.velocity = Vector2.zero;
+        rb.angularVelocity = 0;
+        finishedLap = false;
+    }
+
     public float getLifetime()
     {
         return (lifetime);
@@ -229,13 +266,33 @@ public class CarController : MonoBehaviour
         }
     }
 
+    public void setAsElite(bool status)
+    {
+        IsElite = status;
+    }
+    public bool getIsElite()
+    {
+        return (IsElite);
+    }
+
     // If the car collides with a wall or if it has been running for too long, then it will be marked as dead.
-    private void setCarAsDead()
+    public void setCarAsDead()
     {
         pause = true;
         deadPosition = transform.position;
+        deadRotation = transform.rotation;
         
         CarsControllerHelper.InactivateCar();
+    }
+
+    public Vector2 getDeadPosition()
+    {
+        return (deadPosition);
+    }
+
+    public Quaternion getDeadRotation()
+    {
+        return (deadRotation);
     }
 
     public void startCar()
@@ -340,11 +397,11 @@ public class CarController : MonoBehaviour
     //[TODO]
     public void writeNeuralNetworkToFile()
     {
-
+        thisNN.writeNeuralNetworkToFile();
     }
     //[TODO]
     public void readNeuralNetworkFromFile()
     {
-
+        thisNN.readNeuralNetworkFromFile();
     }
 }

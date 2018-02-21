@@ -168,11 +168,14 @@ public class GameController : MonoBehaviour {
                 float lifetime = carsScript[i][j].getLifetime();
                 //List<float> checkpointTimes = carControllerScript.getCheckpointTimes();
                 float lastCheckpointTime = carsScript[i][j].getLastCheckpointTime();
-                carStats.Add(new CarStats(j, reachedCheckpoint, distanceToNextCheckpoint, lifetime, lastCheckpointTime, i));
+                bool carFinished = carsScript[i][j].getFinishedStatus();
+                carStats.Add(new CarStats(j, reachedCheckpoint, distanceToNextCheckpoint, lifetime, lastCheckpointTime, i, carFinished));
             }
         }
         this.shuffledGroup = carStats
-            .OrderByDescending(a => a.getLastCheckpoint())
+            .OrderByDescending(a => a.getFinishedLap() == true ? 1 : 0)
+            // [TODO] add order by finish time or last checkpoint time
+            .ThenByDescending(a => a.getLastCheckpoint())
             .ThenBy(a => a.getDistNeeded()) // then order by distance to next checkpoint
             .ThenBy(a => a.getLastCheckpointTime())
             .ToList();
@@ -187,16 +190,33 @@ public class GameController : MonoBehaviour {
                     .ToList()
             );
 
+            foreach(var elitecar in this.eliteGroup[i])
+            {
+                carsScript[i][elitecar.getIdCar()].ResetElite();
+            }
+
             // clear out the neural networks list so they can be processed fresh.
             newGenerationNeuralNetworks[i].Clear();
         }
-        
+
+        // save the best neural network to file
+        carsScript[shuffledGroup[0].getIdSpawner()][shuffledGroup[0].getIdCar()].writeNeuralNetworkToFile();
         CarsControllerHelper.NeedProcessNeuralNetworks = true;
         //Debug.Log("Process neural networks");
     }
 
     private void processNeuralNetworks()
     {
+        // reset all cars as non-elite
+        for(int i = 0; i<carSpawners.Length; i++)
+        {
+            for(int j = 0; j<numberOfCarsCreated[i]; j++)
+            {
+                var thisCarScript = carsScript[i][j];
+                thisCarScript.setAsElite(false);
+            }
+        }
+
         // transfer
         for(int i = 0; i<carSpawners.Length; i++)
         {
@@ -204,7 +224,10 @@ public class GameController : MonoBehaviour {
             for(int j = 0; j<numberAsElite[i]; j++)
             {
                 int carId = eliteGroup[i][j].getIdCar();
-                newGenerationNeuralNetworks[i].Add(carsScript[i][carId].getNeuralNetwork());
+                var thisCarScript = carsScript[i][carId];
+                //var transferNN = thisCarScript.getNeuralNetwork();
+                thisCarScript.setAsElite(true);
+                //newGenerationNeuralNetworks[i].Add(transferNN);
                 //Debug.Log("elite [" + i.ToString() + "] [" + j.ToString() + "]");
             }
 
@@ -273,12 +296,22 @@ public class GameController : MonoBehaviour {
                 }
 
                 int carToReset = numberOfCarsReset[i];
-                carsScript[i][carToReset].ResetCar(newGenerationNeuralNetworks[i][0], position[i], rotation[i]);
-                //carsScript[i][carToReset].setTrack(carSpawnersScript[i].getInnerTrack()); // Not needed because each car is reset within its own track
-                newGenerationNeuralNetworks[i].RemoveAt(0);
+                var carToResetScript = carsScript[i][carToReset];
+
+                if (carToResetScript.getIsElite())
+                {
+                    carToResetScript.ResetElite();
+                }
+                else
+                {
+                    var newNeuralNetworkToUse = newGenerationNeuralNetworks[i][0];
+                    carToResetScript.ResetCar(newNeuralNetworkToUse, position[i], rotation[i]);
+                    newGenerationNeuralNetworks[i].RemoveAt(0);
+                    CarsControllerHelper.NumberOfActiveCars += 1;
+                }
 
                 numberOfCarsReset[i] += 1;
-                CarsControllerHelper.NumberOfActiveCars += 1;
+                
                 if (numberOfCarsReset[i]>=numberOfCarsCreated[i])
                 {
                     numberOfSpawnsFinished += 1;

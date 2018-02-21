@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
+using UnityEditor;
 using UnityEngine;
 
 #region Activation functions
@@ -129,6 +131,36 @@ public class Layer_new
 
         this.z = new double[n];
         this.a = new double[n];
+    }
+
+    public string weightsAsString()
+    {
+        int n = weightMatrix.GetLength(0);
+        int m = weightMatrix.GetLength(1);
+
+        string res = n.ToString() + " " + m.ToString();
+
+        for(int i = 0; i<n; i++)
+        {
+            for (int j = 0; j < m; j++)
+            {
+                res += " " + weightMatrix[i, j].ToString();
+            }
+        }
+
+        return (res);
+    }
+
+    public string biasAsString()
+    {
+        string res = String.Empty;
+
+        for(int i = 0; i<bias.Length; i++)
+        {
+            res += " " + bias[i].ToString();
+        }
+
+        return (res);
     }
 
     // Constructor for input layer only.
@@ -390,5 +422,31 @@ public class NeuralNetwork_new
                 Debug.Log(a[j].ToString());
             }
         }
+    }
+
+    //[TODO]
+    public void writeNeuralNetworkToFile()
+    {
+        string path = @"Assets\Resources\bestNN.txt";
+
+        /*
+        // Write data to file
+        StreamWriter writer = new StreamWriter(path, true);
+        writer.WriteLine("line");
+        writer.Close();
+        */
+        using (System.IO.StreamWriter file = new System.IO.StreamWriter(path))
+        {
+            for (int i = 1; i < layers.Count; i++)
+            {
+                file.WriteLine(layers[i].weightsAsString());
+                file.WriteLine(layers[i].biasAsString());
+            }
+        }
+    }
+    //[TODO]
+    public void readNeuralNetworkFromFile()
+    {
+
     }
 }
