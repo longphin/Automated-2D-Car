@@ -7,9 +7,13 @@ public class GameController : MonoBehaviour {
     public GameObject[] carSpawners;
     private CarsController[] carSpawnersScript;
 
-    private int[] numberOfCars = new int[] { 17, 17 };
+    // game options
+    bool prioritizeSafety = true; // [TODO] make UI so that this can be changed to false
+
+    // fields
+    private int[] numberOfCars = new int[] { 20, 20 };
     private float percentageAsElite = .2f; // The creme de la creme of each generation is the top NumberOfCars * percentageToKeep.
-    private float percentageOfEliteChildren = .4f; // The percentage of the next generation made up of elite children.
+    private float percentageOfEliteChildren = .5f; // The percentage of the next generation made up of elite children.
     private float percentageToTransfer = .2f; // The top x% will be kept in the next generation.
     private float mutationRate = .01f;
     private float timer = 0f;
@@ -166,19 +170,40 @@ public class GameController : MonoBehaviour {
                 int reachedCheckpoint = carsScript[i][j].getCheckpoint();
                 float distanceToNextCheckpoint = carsScript[i][j].distanceToNextCheckpoint();
                 float lifetime = carsScript[i][j].getLifetime();
-                //List<float> checkpointTimes = carControllerScript.getCheckpointTimes();
-                float lastCheckpointTime = carsScript[i][j].getLastCheckpointTime();
                 bool carFinished = carsScript[i][j].getFinishedStatus();
-                carStats.Add(new CarStats(j, reachedCheckpoint, distanceToNextCheckpoint, lifetime, lastCheckpointTime, i, carFinished));
+                float lapTime = carsScript[i][j].getLapTime();
+                float lastCheckpointTime = carsScript[i][j].getLastCheckpointTime();
+                List<float> checkpointTimes = carsScript[i][j].getCheckpointTimes();
+                carStats.Add(new CarStats(j, reachedCheckpoint, distanceToNextCheckpoint, lifetime, i, carFinished, lapTime, checkpointTimes, lastCheckpointTime));
             }
         }
-        this.shuffledGroup = carStats
-            .OrderByDescending(a => a.getFinishedLap() == true ? 1 : 0)
-            // [TODO] add order by finish time or last checkpoint time
-            .ThenByDescending(a => a.getLastCheckpoint())
-            .ThenBy(a => a.getDistNeeded()) // then order by distance to next checkpoint
-            .ThenBy(a => a.getLastCheckpointTime())
-            .ToList();
+
+        if (prioritizeSafety)
+        {
+            this.shuffledGroup = carStats
+                .OrderByDescending(a => a.getFinishedLap() ? 1 : 0) // If car made a lap, this will be 1, otherwise 0
+                .ThenBy(a => a.getLapTime()) // If car made a lap, this will be the time taken, otherwise 0
+                                             // [TODO] add order by finish time or last checkpoint time
+                .ThenByDescending(a => a.getLastCheckpoint()) // This will be the number of checkpoints the car has passed
+                .ThenBy(a => a.getDistNeeded()) // This will be the distance to next checkpoint
+                .ToList();
+        }
+        else
+        {
+            /*
+            carStats.Sort();
+            this.shuffledGroup = carStats;
+            */
+            this.shuffledGroup = carStats
+                .OrderByDescending(a => a.getFinishedLap() ? 1 : 0) // If car made a lap, this will be 1, otherwise 0
+                .ThenBy(a => a.getLapTime()) // If car made a lap, this will be the time taken, otherwise 0
+                                             // [TODO] add order by finish time or last checkpoint time
+                .ThenByDescending(a => a.getLastCheckpoint()) // This will be the number of checkpoints the car has passed
+                //.ThenBy(a => a.getDistNeeded()) // This will be the distance to next checkpoint
+                .ThenBy(a => a.getLastCheckpointTotalTime())
+                .ThenBy(a => a.getDistNeeded())
+                .ToList();
+        }
 
         // For each spawner, grab the most elite.
         for(int i = 0; i<carSpawners.Length; i++)

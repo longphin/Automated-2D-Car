@@ -30,27 +30,25 @@ public class CarController : MonoBehaviour
     private int[] N = new int[] { TotalNumberOfInputs, TotalNumberOfInputs, TotalNumberOfOutputs }; // number of nodes in each layer
 
     private int lastCheckpoint = -1;
+    private float lastCheckpointTime = 0;
     private Vector2 deadPosition; // When the car hits a wall, it will be "dead" at that position.
     private Quaternion deadRotation;
-
-    private int laps = 0; // [TODO] for each lap, increment this
 
     private float generationTimer = 0f; // this is how long the current generation has been running
     private float generationMaxTimer = 5f; // this is how long the current generation has to run
     private float lifetime = 0f; // The full lifetime that the car has been running.
+    private float timeUntilNextCheckpoint = 0;
 
-    //private GameObject innerTrack;
     private InnerTrack innerTrackScript;
-
-    //private List<float> checkpointTimes = new List<float>();
-
-    private float lastCheckpointTime;
-
+    
     private int IdCar;
     private int IdSpawner;
 
     private bool IsElite = false;
     private bool finishedLap = false;
+    private float lapTime = 0;
+
+    private List<float> checkpointTimes = new List<float>();
 
     public void setAngle(Quaternion angle)
     {
@@ -64,10 +62,10 @@ public class CarController : MonoBehaviour
     public void setCheckpoint(int newCheckpoint)
     {
         if (newCheckpoint == lastCheckpoint+1) // make sure the checkpoint was the next in line. This is to prevent going backwards at the start giving a big lead.
-            // [TODO] If this goes for more laps, need to fix this. 
         {
             lastCheckpoint = newCheckpoint;
-            //checkpointTimes.Add(lifetime);
+            checkpointTimes.Add(timeUntilNextCheckpoint);
+            timeUntilNextCheckpoint = 0;
             lastCheckpointTime = lifetime;
         }
     }
@@ -108,17 +106,18 @@ public class CarController : MonoBehaviour
 
     public int getScore()
     {
-        //return (lastCheckpoint + laps*CarsControllerHelper.checkpoints.Count);
-        return (lastCheckpoint + laps * innerTrackScript.getCheckpointCount());
-    }
-
-    public void addLap()
-    {
-        laps += 1;
+        return (lastCheckpoint+1);
     }
     public void setAsFinishedLap()
     {
+        lastCheckpointTime = lifetime;
         finishedLap = true;
+        lapTime = lifetime;
+    }
+
+    public float getLapTime()
+    {
+        return (lapTime);
     }
 
     public float distanceToNextCheckpoint()
@@ -151,11 +150,7 @@ public class CarController : MonoBehaviour
         this.thisNN = newNN;
     }
 
-    public float getLastCheckpointTime()
-    {
-        return (lastCheckpointTime);
-    }
-
+    // This resets the car's state to when it was considered dead, but does not start it up again, so some values are not reset.
     public void ResetElite()
     {
         resetCarState();
@@ -165,33 +160,43 @@ public class CarController : MonoBehaviour
         GetComponent<SpriteRenderer>().color = new Color(1f, .5f, .5f, 1f);
     }
 
+    // This resets the car's entire state so it can re-do the track entirely.
     public void ResetCar(NeuralNetwork_new NN, Vector2 pos, Quaternion rotation)
     {
         resetCarState();
 
         this.thisNN = NN;
-        //checkpointTimes.Clear();
-        lastCheckpointTime = 0f;
         transform.position = pos;
         transform.rotation = rotation;
-        //rb.velocity = startVelocity;
         lastCheckpoint = -1;
         generationTimer = 0f;
+        lapTime = 0;
         lifetime = 0f;
+        timeUntilNextCheckpoint = 0;
         GetComponent<SpriteRenderer>().color = new Color(1f, 1f, 1f, 1f);
+        finishedLap = false;
+        checkpointTimes.Clear();
+        lastCheckpointTime = 0;
         pause = false;
     }
 
+    public float getLastCheckpointTime()
+    {
+        return (lastCheckpointTime);
+    }
     private void resetCarState()
     {
         rb.velocity = Vector2.zero;
         rb.angularVelocity = 0;
-        finishedLap = false;
     }
 
     public float getLifetime()
     {
         return (lifetime);
+    }
+    public List<float> getCheckpointTimes()
+    {
+        return (checkpointTimes);
     }
 
     void Update()
@@ -204,6 +209,7 @@ public class CarController : MonoBehaviour
         {
             generationTimer += Time.deltaTime;
             lifetime += Time.deltaTime;
+            timeUntilNextCheckpoint += Time.deltaTime;
         }
     }
 
@@ -311,8 +317,8 @@ public class CarController : MonoBehaviour
         double sightMax = -1; // unreachable min value
         for (int i = 0; i < numberOfSights; i++)
         {
-            float x = transform.position.x + r * Mathf.Cos(carAngle + angleIncrement * i);
-            float y = transform.position.y + r * Mathf.Sin(carAngle + angleIncrement * i);
+            float x = transform.position.x + r * Mathf.Cos(carAngle + angleIncrement * i/2);
+            float y = transform.position.y + r * Mathf.Sin(carAngle + angleIncrement * i/2);
 
             Vector2 sightVec = new Vector2(x, y);
             var hit = Physics2D.Linecast(transform.position, sightVec, 1 << LayerMask.NameToLayer("Edges"));
@@ -320,7 +326,6 @@ public class CarController : MonoBehaviour
             if (hit.collider != null)
             {
                 //Debug.DrawLine(transform.position, hit.point, Color.red);
-                //totalSightDistances += 
                 sights[i] = hit.distance; // how far from the wall until hit
                 if (sights[i] > sightMax) sightMax = sights[i];
                 if (sights[i] < sightMin) sightMin = sights[i];
@@ -328,7 +333,7 @@ public class CarController : MonoBehaviour
             }
             else
             {
-                //totalSightDistances += 
+                //Debug.DrawLine(transform.position, sightVec, Color.green);
                 sights[i] = r;
                 if (sights[i] > sightMax) sightMax = sights[i];
                 if (sights[i] < sightMin) sightMin = sights[i];

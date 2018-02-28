@@ -18,6 +18,12 @@ public static class Utils
         return (res);
     }
 
+    public static int Min(int x, int y)
+    {
+        if (x <= y) return (x);
+        return (y);
+    }
+
     public static double Max(double x1, double x2)
     {
         if (x1 > x2) return (x1);
@@ -72,6 +78,18 @@ public static class Utils
         for (int i = 0; i < x.Length; i++)
         {
             res[i] = x[i] + y[i];
+        }
+
+        return (res);
+    }
+
+    public static double[] AddConstantToVector(double[] x, double c)
+    {
+        double[] res = new double[x.Length];
+
+        for(int i = 0; i<x.Length; i++)
+        {
+            res[i] = x[i] + c;
         }
 
         return (res);

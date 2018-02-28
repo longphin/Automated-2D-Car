@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
@@ -35,29 +36,43 @@ public static class CarsControllerHelper
     }
 }
 
-public class CarStats
+public class CarStats : IComparable<CarStats>
 {
     private int IdCar;
     private int lastCheckpoint;
     private float distToNextCheckpoint;
     private float lifetime;
-    //private List<float> checkpointTimes;
     private float lastCheckpointTime;
     private int IdSpawner;
     private bool finishedLap;
+    private float lapTime;
+    private List<float> checkpointTimes = new List<float>();
 
-    public CarStats(int id, int checkpoint, float distToNextCheckpoint, float lifetime, float lastCheckpointTime, int IdSpawner, bool finishedLap)
+    public CarStats(int id, int checkpoint, float distToNextCheckpoint, float lifetime, int IdSpawner, bool finishedLap, float lapTime, List<float> checkpointTimes, float lastCheckpointTime)
     {
         this.IdCar = id;
         this.lastCheckpoint = checkpoint;
         this.distToNextCheckpoint = distToNextCheckpoint;
         this.lifetime = lifetime;
-        //this.checkpointTimes = checkpointTimes;
-        this.lastCheckpointTime = lastCheckpointTime;
         this.IdSpawner = IdSpawner;
         this.finishedLap = finishedLap;
+        this.lapTime = lapTime;
+        this.checkpointTimes = checkpointTimes;
+        this.lastCheckpointTime = lastCheckpointTime;
     }
 
+    public void setLastCheckpointTotalTime(float time)
+    {
+        lastCheckpointTime = time;
+    }
+    public float getLastCheckpointTotalTime()
+    {
+        return (lastCheckpointTime);
+    }
+    public float getLapTime()
+    {
+        return (lapTime);
+    }
     public int getIdSpawner()
     {
         return (IdSpawner);
@@ -82,14 +97,84 @@ public class CarStats
         return (IdCar);
     }
 
-    public float getLastCheckpointTime()
-    {
-        return (lastCheckpointTime);
-    }
-
     public bool getFinishedLap()
     {
         return (finishedLap);
+    }
+
+    public List<float> getCheckpointTimes()
+    {
+        return (checkpointTimes);
+    }
+
+    /*
+    public int CompareTo(CarStats other)
+    {
+        // If cars are not even close, then assign them a rank
+        if (getCheckpointTimes().Count < other.getCheckpointTimes().Count - 1) return (1);
+        if (other.getCheckpointTimes().Count < getCheckpointTimes().Count - 1) return (-1);
+
+        // If cars are relatively close, then rank them by times
+        int minIter = Utils.Min(getCheckpointTimes().Count, other.getCheckpointTimes().Count);
+        for (int i = 0; i < minIter; i++)
+        {
+            if (getCheckpointTimes()[i] < other.getCheckpointTimes()[i]) return (1);
+            if (other.getCheckpointTimes()[i] < getCheckpointTimes()[i]) return (-1);
+        }
+
+        return (0);
+    }
+    */
+
+    /*
+    public int CompareTo(CarStats other)
+    {
+        var otherCheckpointTimes = other.getCheckpointTimes();
+        if (checkpointTimes.Count == 0 && otherCheckpointTimes.Count == 0) return (0);
+        if (checkpointTimes.Count > otherCheckpointTimes.Count) return (-1);
+        if (checkpointTimes.Count < otherCheckpointTimes.Count) return (1);
+
+        if (checkpointTimes[checkpointTimes.Count - 1] > otherCheckpointTimes[otherCheckpointTimes.Count - 1]) return (1);
+        if (checkpointTimes[checkpointTimes.Count - 1] < otherCheckpointTimes[otherCheckpointTimes.Count - 1]) return (-1);
+        return (0);
+    }
+    */
+
+    public int CompareTo(CarStats other)
+    {
+        double epsilon = .15;
+        var otherTimes = other.getCheckpointTimes();
+
+        int best = 0; // number of times this car was better
+        int bested = 0; // number of times the other car was better
+
+        if(checkpointTimes.Count > otherTimes.Count)
+        {
+            best = checkpointTimes.Count - otherTimes.Count;
+        }
+        else if(checkpointTimes.Count < otherTimes.Count)
+        {
+            bested = otherTimes.Count - checkpointTimes.Count;
+        }
+
+        for(int i = 0; i<Utils.Min(checkpointTimes.Count, otherTimes.Count); i++)
+        {
+            if (checkpointTimes[i] - otherTimes[i] > epsilon)
+            {
+                best += 1;
+            }else if(checkpointTimes[i] - otherTimes[i] > epsilon)
+            {
+                bested += 1;
+            }
+        }
+
+        if (best > bested) return (-1);
+        if (bested > best) return (1);
+
+        // neither had the best time majority, so look at the distance to the next point
+        if (distToNextCheckpoint > other.getDistNeeded()) return (1);
+        if (distToNextCheckpoint < other.getDistNeeded()) return (-1);
+        return (0);
     }
 }
 

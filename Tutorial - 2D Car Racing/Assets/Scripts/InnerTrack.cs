@@ -31,13 +31,16 @@ public class InnerTrack : MonoBehaviour
     void Start()
     {
         // Get a list of checkpoints
-        foreach (var node in GetComponentsInChildren<Transform>())
+        var nodes = GetComponentsInChildren<Transform>();
+        foreach (var node in nodes)
         {
             if (node != transform)
             {
                 int thisCheckpointId = checkpoints.Count;
                 checkpoints.Add(new Checkpoint(node, thisCheckpointId));
-                node.GetComponent<CheckpointTrigger>().setIdCheckpoint(thisCheckpointId);
+                var script = node.GetComponent<CheckpointTrigger>();
+                script.setIdCheckpoint(thisCheckpointId);
+                script.setMaxIdCheckpoint(nodes.Length - 2); // minus 1 because nodes needs to exclude itself, and another minus 1 to correct the array indexing to be 0-based
             }
         }
     }
