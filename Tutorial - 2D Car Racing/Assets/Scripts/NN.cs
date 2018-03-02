@@ -343,7 +343,7 @@ public class NeuralNetwork_new
             {
                 if (Utils.GetRandomDbl() < mutationRate) // mutation
                 {
-                    bias[j] = Utils.GetRandomDbl() * CarsControllerHelper.carMaxSightRange * 2 - CarsControllerHelper.carMaxSightRange; // make between [-carMaxSightRange, carMaxSightRange]
+                    bias[j] = Utils.GetRandomDbl() * 2 - 1;// Utils.GetRandomDbl() * CarsControllerHelper.carMaxSightRange * 2 - CarsControllerHelper.carMaxSightRange; // make between [-carMaxSightRange, carMaxSightRange]
                 }
                 else
                 {

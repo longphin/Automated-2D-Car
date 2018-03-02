@@ -317,8 +317,8 @@ public class CarController : MonoBehaviour
         double sightMax = -1; // unreachable min value
         for (int i = 0; i < numberOfSights; i++)
         {
-            float x = transform.position.x + r * Mathf.Cos(carAngle + angleIncrement * i/2);
-            float y = transform.position.y + r * Mathf.Sin(carAngle + angleIncrement * i/2);
+            float x = transform.position.x + r * Mathf.Cos(carAngle + angleIncrement * i);
+            float y = transform.position.y + r * Mathf.Sin(carAngle + angleIncrement * i);
 
             Vector2 sightVec = new Vector2(x, y);
             var hit = Physics2D.Linecast(transform.position, sightVec, 1 << LayerMask.NameToLayer("Edges"));

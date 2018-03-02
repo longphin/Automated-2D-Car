@@ -11,9 +11,9 @@ public class GameController : MonoBehaviour {
     bool prioritizeSafety = true; // [TODO] make UI so that this can be changed to false
 
     // fields
-    private int[] numberOfCars = new int[] { 20, 20 };
+    private int[] numberOfCars = new int[] { 30, 30 };
     private float percentageAsElite = .2f; // The creme de la creme of each generation is the top NumberOfCars * percentageToKeep.
-    private float percentageOfEliteChildren = .5f; // The percentage of the next generation made up of elite children.
+    private float percentageOfEliteChildren = .4f; // The percentage of the next generation made up of elite children.
     private float percentageToTransfer = .2f; // The top x% will be kept in the next generation.
     private float mutationRate = .01f;
     private float timer = 0f;

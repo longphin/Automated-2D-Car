@@ -48,3 +48,4 @@ Temporary Items
 
 # Directories to ignore
 Debug/
+metadata/
